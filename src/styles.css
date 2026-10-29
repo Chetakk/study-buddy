@@ -630,3 +630,15 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 }
 @media (hover: none) { .tools, .collapse-btn { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .blob, .sk, .ring-fg { animation: none !important; } * { transition: none !important; } }
+
+/* ---------- notes ---------- */
+.note-text p { margin: 0; min-height: 1em; }
+.note-text ul { margin: 2px 0; padding-left: 18px; }
+.note-text code { font-family: var(--mono); font-size: 0.9em; padding: 1px 5px; border-radius: 5px; background: var(--glass-bg-subtle); }
+.note-text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.note .body:has(.note-text) { white-space: normal; }
+.notes-video .note { grid-template-columns: auto 1fr; }
+.notes-video .note .time { text-decoration: none; color: inherit; }
+.notes-video-h { display: flex; gap: 10px; align-items: baseline; text-decoration: none; color: inherit; padding: 2px 8px; }
+.notes-video-h .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; transform: translateY(-1px); }
+.notes-video-h:hover strong { text-decoration: underline; }

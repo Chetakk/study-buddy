@@ -97,3 +97,15 @@ test('export then import round-trips the data', async () => {
   assert.equal((await call('GET', '/groups')).data.length, 1);
   assert.equal((await call('POST', '/import', { nope: 1 })).status, 400);
 });
+
+test('notes are listed, searched and found by the palette', async () => {
+  const id = await firstItem();
+  await call('POST', `/items/${id}/notes`, { atS: 42.5, body: 'Backprop uses the **chain rule**' });
+  const all = (await call('GET', '/notes')).data;
+  assert.equal(all.length, 1);
+  assert.equal(all[0].itemTitle, 'Two');
+  assert.equal((await call('GET', '/notes?q=chain')).data.length, 1);
+  assert.equal((await call('GET', '/notes?q=nothing')).data.length, 0);
+  const hit = (await call('GET', '/search?q=chain')).data.find((h: any) => h.kind === 'Note');
+  assert.equal(hit.href, `#/watch/${id}?t=42`);
+});

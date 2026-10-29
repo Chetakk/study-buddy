@@ -318,6 +318,15 @@ route('GET', '/api/search', (_, __, url) => {
         )
         .all(like) as any[])
     : [];
+  const notes = q
+    ? (db
+        .prepare(
+          `SELECT n.at_s AS atS, n.body, i.id AS itemId, i.title AS sub, g.color FROM notes n
+           JOIN items i ON i.id = n.item_id JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
+           WHERE n.body LIKE ? ESCAPE '\\' ORDER BY n.created_at DESC LIMIT 5`,
+        )
+        .all(like) as any[])
+    : [];
   return [
     ...groups.map((r) => ({ kind: 'Group', title: r.title, sub: '', color: r.color, href: `#/group/${r.id}` })),
     ...sources.map((r) => ({ kind: r.kind === 'problem_set' ? 'Pattern' : 'Playlist', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.id}` })),
@@ -326,6 +335,7 @@ route('GET', '/api/search', (_, __, url) => {
         ? { kind: 'Problem', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.sourceId}` }
         : { kind: 'Video', title: r.title, sub: r.sub, color: r.color, href: `#/watch/${r.id}` },
     ),
+    ...notes.map((r) => ({ kind: 'Note', title: r.body.split('\n')[0].slice(0, 120), sub: r.sub, color: r.color, href: `#/watch/${r.itemId}?t=${Math.floor(r.atS)}` })),
   ];
 });
 
@@ -607,6 +617,22 @@ route('POST', '/api/items/:id/notes', ([id], b) => {
   if (!body) throw new HttpError(400, 'Note is empty');
   const r = db.prepare('INSERT INTO notes (item_id, at_s, body) VALUES (?, ?, ?)').run(Number(id), Number(b.atS) || 0, body);
   return { id: Number(r.lastInsertRowid) };
+});
+
+// Every note, newest video activity first; q filters by note text or video title.
+route('GET', '/api/notes', (_, __, url) => {
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  return db
+    .prepare(
+      `SELECT n.id, n.at_s AS atS, n.body, n.created_at AS createdAt, i.id AS itemId, i.title AS itemTitle,
+              i.thumbnail, s.title AS sourceTitle, g.name AS groupName, g.color AS groupColor
+       FROM notes n JOIN items i ON i.id = n.item_id JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
+       WHERE n.body LIKE ? ESCAPE '\\' OR i.title LIKE ? ESCAPE '\\'
+       ORDER BY (SELECT MAX(created_at) FROM notes WHERE item_id = i.id) DESC, i.id, n.at_s
+       LIMIT 500`,
+    )
+    .all(like, like);
 });
 
 route('DELETE', '/api/notes/:id', ([id]) => {

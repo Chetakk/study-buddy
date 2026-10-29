@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { api } from '../lib/api.ts';
 import { useLoad } from '../lib/useLoad.ts';
-import { navigate } from '../lib/router.ts';
+import { hashParam, navigate } from '../lib/router.ts';
 import { colorVar, coveredSeconds, fmtClock, fmtDuration, mergeSegments, pct, ratio } from '../lib/format.ts';
 import { isPlayback } from '../../shared/segments.ts';
 import { PlayerState, loadYouTube, type YTPlayer } from '../lib/youtube.ts';
 import { ErrorBox, GroupDot, Loading, Thumb } from '../components/ui.tsx';
+import { NoteText } from '../components/NoteText.tsx';
 import { Check, Expand, Next, Prev, Shrink, Trash } from '../components/icons.tsx';
 import type { ItemDetail, Note, Progress, Segment } from '../types.ts';
 
@@ -119,7 +120,9 @@ function Watch({
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
-    const resume = item.progress.positionS < duration - 15 ? Math.floor(item.progress.positionS) : 0;
+    // A link with ?t= (from a note) starts there; otherwise pick up where you left off.
+    const linked = Number(hashParam('t'));
+    const resume = linked > 0 ? Math.floor(linked) : item.progress.positionS < duration - 15 ? Math.floor(item.progress.positionS) : 0;
 
     loadYouTube()
       .then((YT) => {
@@ -213,6 +216,16 @@ function Watch({
     lastT.current = null;
     setNow(s);
   };
+
+  // Following a note link to the video that's already open just seeks.
+  useEffect(() => {
+    const onHash = () => {
+      const t = Number(hashParam('t'));
+      if (t > 0) seek(t);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   const toggleDone = async () => {
     await flush();
@@ -417,7 +430,7 @@ function Watch({
               <textarea
                 ref={noteRef}
                 className="textarea"
-                placeholder="Write a note… (Enter to save, Shift+Enter for a new line)"
+                placeholder="Write a note… (Enter to save, Shift+Enter for a new line; **bold**, `code`, - lists)"
                 onFocus={() => {
                   if (!noteAt.current) noteAt.current = playerRef.current?.getCurrentTime() ?? now;
                 }}
@@ -438,7 +451,9 @@ function Watch({
                 <button className="time" onClick={() => seek(n.atS)} title="Jump to this moment">
                   {fmtClock(n.atS)}
                 </button>
-                <div className="body">{n.body}</div>
+                <div className="body">
+                  <NoteText body={n.body} />
+                </div>
                 <button className="icon-btn" onClick={() => deleteNote(n.id)} title="Delete note">
                   <Trash />
                 </button>

@@ -56,6 +56,7 @@ Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to 
 - **Playlist pages.** Reach a playlist from its group page, or from the Watch page (the Group › Playlist links under the title, or the bar above the playlist on the right).
 - **Problem sheets.** Paste a public Google Sheet of coding problems (in Library, same box as playlists) and each pattern becomes a list in the group: problems with difficulty, sub-topic, the problem link and any explanation videos. Tick problems off as you solve them; a solved problem counts toward your streak. The refresh button re-reads the sheet for new problems and keeps your ticks.
 - **Sidebar.** Your groups with their progress, your streak and the theme toggle. Press <kbd>[</kbd> to collapse it to icons, and <kbd>Ctrl</kbd>+<kbd>K</kbd> to search every group, playlist and video. On a phone it becomes a bottom tab bar.
+- **Notes.** Every note in one place, grouped by video and searchable. Click a time to open the video at that moment. Notes support **bold**, *italic*, `code`, links and `- ` lists, and <kbd>Ctrl</kbd>+<kbd>K</kbd> finds them too.
 - **Progress.** Overall numbers, a year-long study heatmap, the last 7 days by group (as a chart or a table), and per-playlist breakdowns.
 
 ## Layout

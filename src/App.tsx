@@ -4,7 +4,7 @@ import { api } from './lib/api.ts';
 import { useLoad } from './lib/useLoad.ts';
 import { useOnChanged } from './lib/events.ts';
 import { colorVar, pct } from './lib/format.ts';
-import { BookMark, Cards, Chart, Check, ChevronLeft, Flame, Home, Install, Moon, Search, Sun, Videos } from './components/icons.tsx';
+import { BookMark, Cards, Chart, Check, ChevronLeft, Flame, Home, Install, Moon, Pencil, Search, Sun, Videos } from './components/icons.tsx';
 import { SearchPalette } from './components/Search.tsx';
 import { PageBoundary } from './components/ui.tsx';
 import { TodayPage } from './pages/Today.tsx';
@@ -13,6 +13,7 @@ import { SourcePage } from './pages/Source.tsx';
 import { GroupPage } from './pages/Group.tsx';
 import { WatchPage } from './pages/Watch.tsx';
 import { ProgressPage } from './pages/Progress.tsx';
+import { NotesPage } from './pages/Notes.tsx';
 import type { Sidebar } from './types.ts';
 
 type Theme = 'dark' | 'light';
@@ -47,6 +48,7 @@ const NAV = [
   ['today', '#/', 'Today', <Home key="i" />],
   ['library', '#/library', 'Library', <Videos key="i" />],
   ['progress', '#/progress', 'Progress', <Chart key="i" />],
+  ['notes', '#/notes', 'Notes', <Pencil key="i" />],
 ] as const;
 
 const typing = (t: EventTarget | null) =>
@@ -126,6 +128,9 @@ export function App() {
       break;
     case 'progress':
       page = <ProgressPage />;
+      break;
+    case 'notes':
+      page = <NotesPage />;
       break;
     default:
       page = <TodayPage />;

@@ -99,7 +99,7 @@ export interface Sidebar {
 }
 
 export interface SearchHit {
-  kind: 'Group' | 'Playlist' | 'Pattern' | 'Video' | 'Problem';
+  kind: 'Group' | 'Playlist' | 'Pattern' | 'Video' | 'Problem' | 'Note';
   title: string;
   sub: string;
   color: string;
@@ -163,4 +163,13 @@ export interface Stats {
   week: { day: string; groupId: number; seconds: number }[];
   totalStudiedS: number;
   streak: number;
+}
+
+export interface NoteHit extends Note {
+  itemId: number;
+  itemTitle: string;
+  thumbnail: string;
+  sourceTitle: string;
+  groupName: string;
+  groupColor: string;
 }
