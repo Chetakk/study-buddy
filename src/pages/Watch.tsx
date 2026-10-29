@@ -11,6 +11,24 @@ import type { ItemDetail, Note, Progress, Segment } from '../types.ts';
 
 const FLUSH_EVERY_S = 10;
 const AUTO_NEXT_S = 8;
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+// Playback speed is remembered per playlist, in this browser only.
+const speedKey = (sourceId: number) => `sb:speed:${sourceId}`;
+function savedSpeed(sourceId: number): number {
+  try {
+    const v = Number(localStorage.getItem(speedKey(sourceId)));
+    return SPEEDS.includes(v) ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+function saveSpeed(sourceId: number, rate: number) {
+  try {
+    if (rate === 1) localStorage.removeItem(speedKey(sourceId));
+    else localStorage.setItem(speedKey(sourceId), String(rate));
+  } catch {}
+}
 
 export function WatchPage({ id, focus, setFocus }: { id: number; focus: boolean; setFocus: (f: boolean) => void }) {
   const { data: item, error } = useLoad(() => api.get<ItemDetail>(`/items/${id}`), id);
@@ -54,6 +72,7 @@ function Watch({
   const [ended, setEnded] = useState(false);
   const [countdown, setCountdown] = useState(AUTO_NEXT_S);
   const [playerError, setPlayerError] = useState<string | null>(null);
+  const [speed, setSpeed] = useState(() => savedSpeed(item.sourceId));
 
   const idx = item.playlist.findIndex((p) => p.id === item.id);
   const prev = item.playlist[idx - 1];
@@ -111,6 +130,15 @@ function Watch({
           videoId: item.externalId,
           playerVars: { start: resume, rel: 0, modestbranding: 1, playsinline: 1 },
           events: {
+            onReady: (e) => {
+              const rate = savedSpeed(item.sourceId);
+              if (rate !== 1) e.target.setPlaybackRate(rate);
+            },
+            // Also catches speed changes made in YouTube's own settings menu.
+            onPlaybackRateChange: (e) => {
+              setSpeed(e.data);
+              saveSpeed(item.sourceId, e.data);
+            },
             onStateChange: (e) => {
               if (e.data === PlayerState.PAUSED) flush();
               if (e.data === PlayerState.ENDED) {
@@ -216,16 +244,41 @@ function Watch({
     setNotes((n) => n.filter((x) => x.id !== noteId));
   };
 
-  // Keyboard: F focus mode, N new note, Esc leave focus. Ignored while typing.
+  const changeSpeed = (step: number) => {
+    const p = playerRef.current;
+    if (!p?.setPlaybackRate) return;
+    const i = SPEEDS.indexOf(p.getPlaybackRate());
+    const rate = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 2 : i) + step))];
+    p.setPlaybackRate(rate);
+    showToast(`Speed ${rate}×`);
+  };
+
+  const togglePlay = () => {
+    const p = playerRef.current;
+    if (!p?.getPlayerState) return;
+    if (p.getPlayerState() === PlayerState.PLAYING) p.pauseVideo();
+    else p.playVideo();
+  };
+
+  // Keyboard: Space/K play, J/L ±10s, < > speed, F focus mode, N new note, Esc leave focus. Ignored while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = playerRef.current?.getCurrentTime?.() ?? now;
       if (e.key === 'f' || e.key === 'F') setFocus(!focus);
       else if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
         startNote();
-      } else if (e.key === 'Escape' && focus) setFocus(false);
+      } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        if (el.closest('button, a, [role="slider"]') && e.key === ' ') return;
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'j' || e.key === 'J') seek(Math.max(0, t - 10));
+      else if (e.key === 'l' || e.key === 'L') seek(Math.min(duration, t + 10));
+      else if (e.key === '<' || e.key === ',') changeSpeed(-1);
+      else if (e.key === '>' || e.key === '.') changeSpeed(1);
+      else if (e.key === 'Escape' && focus) setFocus(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -394,7 +447,8 @@ function Watch({
           </div>
         )}
         <div className="subtle" style={{ fontSize: 12, marginTop: 10 }}>
-          {fmtDuration(duration)} video · <kbd>F</kbd> focus · <kbd>N</kbd> note
+          {fmtDuration(duration)} video{speed !== 1 && ` · ${speed}×`} · <kbd>K</kbd> play · <kbd>J</kbd>/<kbd>L</kbd> ±10s ·{' '}
+          <kbd>&lt;</kbd>/<kbd>&gt;</kbd> speed · <kbd>F</kbd> focus · <kbd>N</kbd> note
         </div>
       </aside>
 

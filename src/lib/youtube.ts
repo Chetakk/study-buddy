@@ -5,9 +5,10 @@ export const PlayerState = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED
 export interface YTPlayer {
   getCurrentTime(): number;
   getDuration(): number;
-  getDuration(): number;
   getPlayerState(): number;
   getPlaybackRate(): number;
+  setPlaybackRate(rate: number): void;
+  getAvailablePlaybackRates(): number[];
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   playVideo(): void;
   pauseVideo(): void;
@@ -23,6 +24,7 @@ interface YTNamespace {
       events?: {
         onReady?: (e: { target: YTPlayer }) => void;
         onStateChange?: (e: { data: number; target: YTPlayer }) => void;
+        onPlaybackRateChange?: (e: { data: number; target: YTPlayer }) => void;
       };
     },
   ) => YTPlayer;
