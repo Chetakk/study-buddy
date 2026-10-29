@@ -53,7 +53,7 @@ Everything works without AI. If you turn it on, the Watch page's Cards tab gets 
 
 For the systemd service, add the variables as `Environment=` lines in `~/.config/systemd/user/study-buddy.service`.
 
-## What's in Phase 1
+## Features
 
 - **Groups.** You create, rename, recolour, reorder and delete groups. A group holds one or more playlists.
 - **Playlist import.** Paste a playlist link and every video is imported with its duration, including playlists with more than 100 videos. The refresh button picks up new uploads.
