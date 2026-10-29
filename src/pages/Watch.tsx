@@ -257,9 +257,26 @@ function Watch({
     noteAt.current = 0;
   };
 
+  const [aiReady, setAiReady] = useState(false);
+  const [drafting, setDrafting] = useState<'closed' | 'open' | 'busy'>('closed');
+  const transcriptRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     api.get<Card[]>(`/cards?item=${item.id}`).then(setCards, () => {});
+    api.get<{ ready: boolean }>('/ai').then((a) => setAiReady(a.ready), () => {});
   }, [item.id]);
+
+  const draftWithAI = async () => {
+    setDrafting('busy');
+    try {
+      const r = await api.post<{ added: number }>(`/items/${item.id}/draft-cards`, { transcript: transcriptRef.current?.value ?? '' });
+      showToast(r.added ? `${r.added} draft cards are waiting in Pending review` : 'The AI found nothing to make cards from');
+      setDrafting('closed');
+    } catch (e) {
+      showToast((e as Error).message);
+      setDrafting('open');
+    }
+  };
 
   const startCard = (init?: { back?: string; atS?: number }) => {
     setDraft({ back: init?.back, atS: init?.atS ?? playerRef.current?.getCurrentTime() ?? now });
@@ -469,6 +486,36 @@ function Watch({
               <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => startCard()}>
                 <Cards /> New card at {fmtClock(now)} <kbd>C</kbd>
               </button>
+            )}
+            {aiReady && !draft && drafting === 'closed' && (
+              <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setDrafting('open')}>
+                Draft cards with AI
+              </button>
+            )}
+            {aiReady && drafting !== 'closed' && (
+              <div className="card stack card-form" style={{ gap: 8 }}>
+                <label className="field-label" htmlFor="ai-transcript">
+                  Transcript (optional)
+                </label>
+                <textarea
+                  id="ai-transcript"
+                  ref={transcriptRef}
+                  className="textarea"
+                  rows={4}
+                  placeholder="On YouTube: … under the video → Show transcript, select it all and paste here. Your notes for this video are sent too."
+                />
+                <div className="row">
+                  <button className="btn btn-primary btn-sm" onClick={draftWithAI} disabled={drafting === 'busy'}>
+                    {drafting === 'busy' ? 'Drafting…' : 'Draft cards'}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setDrafting('closed')} disabled={drafting === 'busy'}>
+                    Cancel
+                  </button>
+                </div>
+                <span className="subtle" style={{ fontSize: 12 }}>
+                  Drafts go to Flashcards → <a href="#/cards">Pending review</a> for you to approve or edit.
+                </span>
+              </div>
             )}
             {cards.length === 0 && !draft && (
               <p className="muted" style={{ fontSize: 14 }}>

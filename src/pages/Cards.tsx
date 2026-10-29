@@ -5,10 +5,11 @@ import { notifyChanged, useOnChanged } from '../lib/events.ts';
 import { colorVar, fmtClock } from '../lib/format.ts';
 import { ErrorBox, Loading } from '../components/ui.tsx';
 import { NoteText } from '../components/NoteText.tsx';
-import { Pencil, Play, Plus, Trash } from '../components/icons.tsx';
+import { Check, Pencil, Play, Plus, Trash } from '../components/icons.tsx';
 import type { Card, CardSummary, Group, Pile } from '../types.ts';
 
 const PILES: [Pile | 'all', string][] = [
+  ['pending', 'Pending review'],
   ['all', 'All'],
   ['new', 'New'],
   ['learning', 'Learning'],
@@ -94,12 +95,20 @@ export function CardsPage() {
 
       <div className="spread wrap">
         <div className="tabs" role="tablist" aria-label="Piles">
-          {PILES.map(([key, label]) => (
+          {PILES.filter(([key]) => key !== 'pending' || s?.piles.pending || pile === 'pending').map(([key, label]) => (
             <button key={key} role="tab" aria-selected={pile === key} className={pile === key ? 'active' : ''} onClick={() => setPile(key)}>
               {label} {s && <span className="mono subtle">{key === 'all' ? s.total - s.piles.pending : s.piles[key]}</span>}
             </button>
           ))}
         </div>
+        {pile === 'pending' && cards && cards.length > 1 && (
+          <button
+            className="btn btn-sm"
+            onClick={() => Promise.all(cards.map((c) => api.patch(`/cards/${c.id}`, { pending: false }))).then(() => notifyChanged())}
+          >
+            <Check /> Approve all {cards.length}
+          </button>
+        )}
         <input className="input cards-search" type="search" placeholder="Search cards" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search cards" />
       </div>
 
@@ -152,6 +161,7 @@ function CardRow({ card: c, groups, onChange }: { card: Card; groups: Group[]; o
         )}
         <div className="video-sub">
           <span className={`chip pile-${c.pile}`}>{PILE_LABEL[c.pile]}</span>{' '}
+          {c.origin === 'ai' && c.pile === 'pending' && 'Drafted by AI · '}
           {c.reps > 0 && <>due {new Date(c.due).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · </>}
           {c.itemId && c.itemKind === 'video' ? (
             <a href={`#/watch/${c.itemId}${c.atS != null ? `?t=${Math.floor(c.atS)}` : ''}`}>
@@ -166,6 +176,11 @@ function CardRow({ card: c, groups, onChange }: { card: Card; groups: Group[]; o
         </div>
       </div>
       <span className="row-actions">
+        {c.pile === 'pending' && (
+          <button className="btn btn-sm" onClick={() => api.patch(`/cards/${c.id}`, { pending: false }).then(onChange)} title="Keep this card">
+            <Check /> Approve
+          </button>
+        )}
         {c.kind !== 'problem' && (
           <button className="icon-btn" onClick={() => setEditing(true)} title="Edit card" aria-label="Edit card">
             <Pencil />

@@ -14,6 +14,7 @@ import {
 import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
 import { fetchSheet, parseProblems, parseSheetUrl } from './sheets.ts';
 import { fetchArticle, normalizeUrl } from './articles.ts';
+import { cardPrompt, parseDrafts, provider, tidyTranscript } from './ai.ts';
 import { HttpError } from './http.ts';
 import { addProblemCard, createCard, getCard, listCards, queue, reviewCard, summary as cardSummary, updateCard } from './cards.ts';
 import { backupNow, exportAll, importAll, scheduleBackups } from './backup.ts';
@@ -841,6 +842,34 @@ route('DELETE', '/api/cards/:id', ([id]) => {
   db.prepare('DELETE FROM cards WHERE id = ?').run(Number(id));
   return { ok: true };
 });
+route('GET', '/api/ai', () => {
+  const p = provider();
+  return { provider: p.name, model: p.model, ready: p.ready };
+});
+
+// Drafts cards for a video from a pasted transcript and/or its notes. Drafts wait in "Pending review".
+route('POST', '/api/items/:id/draft-cards', async ([id], b) => {
+  const item = db.prepare("SELECT id, title FROM items WHERE id = ? AND kind = 'video'").get(Number(id)) as any;
+  if (!item) throw new HttpError(404, 'Video not found');
+  const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const notes = (db.prepare('SELECT at_s AS atS, body FROM notes WHERE item_id = ? ORDER BY at_s').all(item.id) as any[])
+    .map((n) => `[${clock(n.atS)}] ${n.body}`)
+    .join('\n');
+  const transcript = tidyTranscript(String(b.transcript ?? ''));
+  if (!transcript && !notes) throw new HttpError(400, 'Paste the transcript, or write some notes first');
+  const text = [transcript && `Transcript:\n${transcript}`, notes && `Learner's notes:\n${notes}`].filter(Boolean).join('\n\n');
+  const ai = provider();
+  if (!ai.ready) throw new HttpError(400, 'No AI provider is set up');
+  let drafts;
+  try {
+    drafts = parseDrafts(await ai.complete(cardPrompt(item.title, text)));
+  } catch (e) {
+    throw new HttpError(502, (e as Error).message);
+  }
+  for (const d of drafts) createCard({ ...d, itemId: item.id, origin: 'ai', pending: true });
+  return { added: drafts.length };
+});
+
 route('POST', '/api/cards/:id/review', ([id], b) => reviewCard(Number(id), Number(b.rating)));
 
 route('GET', '/api/export', () => exportAll());

@@ -44,6 +44,15 @@ Needs Node 22.13 or newer. It uses Node's built-in SQLite, so there are no nativ
 
 Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to `backups/` next to it once a day (the last 7 are kept), and **Library → Your data** exports or imports everything as one JSON file. Set `STUDY_BUDDY_DB` to use a different file, or `PORT` to change the port.
 
+## AI (optional)
+
+Everything works without AI. If you turn it on, the Watch page's Cards tab gets **Draft cards with AI**: paste the video's transcript (on YouTube: **…** under the video → **Show transcript**, select it all and copy), and your notes for the video are sent along too. The drafted cards wait in **Flashcards → Pending review** until you approve, edit or delete them. Only free providers are supported:
+
+- **Ollama** (local, private): install [Ollama](https://ollama.com), run `ollama pull llama3.2`, then start Study Buddy with `STUDY_BUDDY_AI=ollama`. Optional: `OLLAMA_MODEL` (default `llama3.2`), `OLLAMA_URL` (default `http://127.0.0.1:11434`).
+- **Gemini free tier**: get a key at [Google AI Studio](https://aistudio.google.com/apikey), then start with `STUDY_BUDDY_AI=gemini GEMINI_API_KEY=…`. Optional: `GEMINI_MODEL` (default `gemini-2.5-flash`). On the free tier, Google may use what you send to improve its products.
+
+For the systemd service, add the variables as `Environment=` lines in `~/.config/systemd/user/study-buddy.service`.
+
 ## What's in Phase 1
 
 - **Groups.** You create, rename, recolour, reorder and delete groups. A group holds one or more playlists.
@@ -77,7 +86,7 @@ src/         React UI: pages/, components/, lib/
 ## Next phases
 
 2. Flashcards: done (see above)
-3. AI-drafted cards from transcripts (free model: Gemini free tier or Ollama), approved in a "Pending review" inbox
+3. AI-drafted cards: done, from a pasted transcript and your notes (see AI above). Fetching transcripts automatically is not built yet.
 4. Daily planner with a time budget per group, and carry-over of unfinished items
 5. Articles: done (see above)
 6. Chrome extension: done (bulk import and tracking on youtube.com)
