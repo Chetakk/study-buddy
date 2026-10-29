@@ -35,9 +35,11 @@ export function SourcePage({ id }: { id: number }) {
   };
 
   const problems = src.kind === 'problem_set';
+  const articles = src.kind === 'articles';
   const anySkipped = src.items.some((i) => i.skipped);
-  const filters = FILTERS.filter((f) => !(problems && f[0] === 'started') && (f[0] !== 'skipped' || anySkipped));
-  const label = (key: string, text: string) => (problems ? ({ left: 'To solve', done: 'Solved' } as Record<string, string>)[key] ?? text : text);
+  const filters = FILTERS.filter((f) => !((problems || articles) && f[0] === 'started') && (f[0] !== 'skipped' || anySkipped));
+  const label = (key: string, text: string) =>
+    problems ? ({ left: 'To solve', done: 'Solved' } as Record<string, string>)[key] ?? text : articles ? ({ left: 'To read', done: 'Read' } as Record<string, string>)[key] ?? text : text;
   const test = filters.find((f) => f[0] === filter)?.[2] ?? (() => true);
   const items = src.items.filter(test);
   const live = src.items.filter((i) => !i.skipped);
@@ -52,24 +54,31 @@ export function SourcePage({ id }: { id: number }) {
               <GroupDot color={src.group.color} /> {src.group.name}
             </a>
             <span aria-hidden>›</span>
-            <span>{src.kind === 'problem_set' ? 'Pattern' : 'Playlist'}</span>
+            <span>{problems ? 'Pattern' : articles ? 'Reading list' : 'Playlist'}</span>
           </nav>
           <h1>{src.title}</h1>
           <p className="muted" style={{ marginTop: 6 }}>
             {src.channel && `${src.channel} · `}
-            {problems ? `${src.total} problems` : `${src.total} videos · ${fmtDuration(src.durationS)}`}
+            {problems ? `${src.total} problems` : articles ? `${src.total} articles · ${fmtDuration(src.durationS)} of reading` : `${src.total} videos · ${fmtDuration(src.durationS)}`}
           </p>
         </div>
         <div className="row">
-          <a className="btn" href={src.url} target="_blank" rel="noreferrer">
-            <External /> {problems ? 'Open sheet' : 'YouTube'}
-          </a>
+          {src.url && (
+            <a className="btn" href={src.url} target="_blank" rel="noreferrer">
+              <External /> {problems ? 'Open sheet' : 'YouTube'}
+            </a>
+          )}
+          {articles && next && (
+            <a className="btn btn-primary" href={next.url} target="_blank" rel="noreferrer">
+              <External /> Read next
+            </a>
+          )}
           {problems && next && (
             <a className="btn btn-primary" href={next.url || '#'} target="_blank" rel="noreferrer">
               <Play /> Next problem
             </a>
           )}
-          {!problems && next && (
+          {!problems && !articles && next && (
             <a className="btn btn-primary" href={`#/watch/${next.id}`}>
               <Play /> {next.status === 'in_progress' ? 'Continue' : 'Start'}
             </a>
@@ -83,11 +92,13 @@ export function SourcePage({ id }: { id: number }) {
           <span className="muted mono" style={{ fontSize: 14 }}>
             {problems
               ? `${src.done}/${src.total} solved`
+              : articles
+              ? `${src.done}/${src.total} read`
               : `${src.done}/${src.total} videos · ${fmtDuration(src.watchedS)} of ${fmtDuration(src.durationS)}`}
           </span>
         </div>
         <Bar value={ratio(src.done, src.total)} color={src.group.color} size="lg" label={problems ? 'Problems solved' : 'Playlist progress'} />
-        {!problems && src.done < src.total && timeLeft(src.durationS - src.watchedS, src.paceS) && (
+        {!problems && !articles && src.done < src.total && timeLeft(src.durationS - src.watchedS, src.paceS) && (
           <span className="subtle" style={{ fontSize: 13 }}>
             {timeLeft(src.durationS - src.watchedS, src.paceS)}
           </span>
@@ -107,7 +118,8 @@ export function SourcePage({ id }: { id: number }) {
         <div className="list">
           {items.length === 0 && <p className="empty">Nothing here.</p>}
           {problems && <ProblemRows items={items} color={src.group.color} onToggle={toggle} />}
-          {!problems && items.map((i) => (
+          {articles && <ArticleRows items={items} color={src.group.color} onToggle={toggle} />}
+          {!problems && !articles && items.map((i) => (
             <a key={i.id} href={`#/watch/${i.id}`} className={`list-row${i.skipped ? ' skipped' : ''}`}>
               <span className="idx">{i.position + 1}</span>
               <Thumb src={i.thumbnail} durationS={i.durationS} watched={ratio(i.watchedS, i.durationS)} color={src.group.color} />
@@ -144,6 +156,35 @@ export function SourcePage({ id }: { id: number }) {
 
 // SQLite's datetime('now') is UTC without a zone marker.
 const shortDate = (sqlUtc: string) => new Date(`${sqlUtc.replace(' ', 'T')}Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+const host = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
+export function ArticleRows({ items, color, onToggle }: { items: ListItem[]; color: string; onToggle: (id: number, s: Status) => void }) {
+  return (
+    <>
+      {items.map((i) => (
+        <div key={i.id} className={`list-row prob-row${i.status === 'done' ? ' solved' : ''}`}>
+          <span className="idx">{i.position + 1}</span>
+          <div className="video-meta">
+            <a className="video-title prob-title" href={i.url} target="_blank" rel="noreferrer">
+              {i.title}
+            </a>
+            <div className="video-sub">
+              {Math.max(1, Math.round(i.durationS / 60))} min read · {host(i.url)}
+            </div>
+          </div>
+          <DoneToggle status={i.status} color={color} title={i.title} onToggle={() => onToggle(i.id, i.status)} />
+        </div>
+      ))}
+    </>
+  );
+}
 
 const DIFF: Record<string, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 

@@ -52,7 +52,9 @@ export function LibraryPage() {
             ? run('import', () => api.post('/sheets', { groupId, url }), (r) =>
                 `Imported ${r.total} problems in ${r.sections} patterns${r.added < r.total ? ` (${r.added} new)` : ''}`,
               )
-            : run('import', () => api.post('/sources', { groupId, url }), (r) => `Added "${r.title}" (${r.count} videos)`)
+            : /[?&]list=|^(PL|OL)[\w-]{10,}$/.test(url)
+              ? run('import', () => api.post('/sources', { groupId, url }), (r) => `Added "${r.title}" (${r.count} videos)`)
+              : run('import', () => api.post('/articles', { groupId, url }), (r) => `Added "${r.title}" to the reading list (${r.minutes} min read)`)
         } />
         <NewGroup
           onCreate={(name) =>
@@ -131,18 +133,18 @@ function AddPlaylist({ groups, busy, onAdd }: { groups: Group[]; busy: boolean; 
 
   return (
     <form className="card stack" style={{ gap: 12 }} onSubmit={submit}>
-      <h2>Add a YouTube playlist</h2>
+      <h2>Add to a group</h2>
       <p className="muted" style={{ fontSize: 13 }}>
         Adding a lot? The Study Buddy Chrome extension imports your saved playlists in one go (see the README).
       </p>
       <div>
         <label className="field-label" htmlFor="pl-url">
-          YouTube playlist or problem sheet
+          YouTube playlist, problem sheet or article
         </label>
         <input
           id="pl-url"
           className="input"
-          placeholder="youtube.com/playlist?list=… or a Google Sheets link"
+          placeholder="A playlist (…?list=…), a Google Sheets link, or any article"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
@@ -324,7 +326,7 @@ function GroupCard({
                     ))}
                   </select>
                 )}
-                <button
+                {s.kind !== 'articles' && <button
                   className="icon-btn"
                   title={s.kind === 'problem_set' ? 'Check the sheet for new problems' : 'Check YouTube for new videos'}
                   onClick={() =>
@@ -336,10 +338,10 @@ function GroupCard({
                   }
                 >
                   <Refresh />
-                </button>
+                </button>}
                 <button
                   className="icon-btn btn-danger"
-                  title={s.kind === 'problem_set' ? 'Remove pattern' : 'Remove playlist'}
+                  title={s.kind === 'problem_set' ? 'Remove pattern' : s.kind === 'articles' ? 'Remove reading list' : 'Remove playlist'}
                   onClick={() => {
                     if (confirm(`Remove "${s.title}" and its progress? This can't be undone.`)) {
                       run('remove', () => api.del(`/sources/${s.id}`));

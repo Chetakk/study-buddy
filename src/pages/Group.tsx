@@ -2,10 +2,10 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { api } from '../lib/api.ts';
 import { useLoad } from '../lib/useLoad.ts';
 import { notifyChanged } from '../lib/events.ts';
-import { colorVar, fmtClock, fmtDuration, pct, ratio, timeLeft } from '../lib/format.ts';
+import { colorVar, fmtClock, fmtDuration, pct, ratio, timeLeft, unitOf } from '../lib/format.ts';
 import { Bar, ErrorBox, Loading, Ring, Thumb } from '../components/ui.tsx';
 import { Check, External, Play, Plus, Search } from '../components/icons.tsx';
-import { ProblemRows } from './Source.tsx';
+import { ArticleRows, ProblemRows } from './Source.tsx';
 import type { GroupDetail, GroupSource, ListItem, Status } from '../types.ts';
 
 const cVar = (color: string) => ({ '--c': colorVar(color) }) as CSSProperties;
@@ -20,8 +20,9 @@ export function GroupPage({ id }: { id: number }) {
     reload();
     notifyChanged();
   };
-  const videos = g.sources.filter((s) => s.kind !== 'problem_set');
+  const videos = g.sources.filter((s) => s.kind === 'youtube_playlist');
   const patterns = g.sources.filter((s) => s.kind === 'problem_set');
+  const reading = g.sources.filter((s) => s.kind === 'articles');
   const nextVideo = g.upNext[0];
   const nextProblem = patterns.map((s) => s.next).find(Boolean);
 
@@ -36,7 +37,7 @@ export function GroupPage({ id }: { id: number }) {
             </a>
             <h1>{g.name}</h1>
             <p className="muted" style={{ marginTop: 4 }}>
-              {summary(g, videos.length > 0, patterns.length > 0)}
+              {summary(g)}
             </p>
           </div>
         </div>
@@ -75,17 +76,23 @@ export function GroupPage({ id }: { id: number }) {
 
       {videos.length > 0 && <VideoSection g={g} sources={videos} />}
       {patterns.length > 0 && <ProblemSection color={g.color} patterns={patterns} onChange={changed} />}
+      {reading.map((s) => (
+        <ReadingSection key={s.id} source={s} color={g.color} onChange={changed} />
+      ))}
     </div>
   );
 }
 
-function summary(g: GroupDetail, hasVideos: boolean, hasProblems: boolean) {
-  const n = (x: number, word: string) => `${x} ${word}${x === 1 ? '' : 's'}`;
-  if (hasProblems && !hasVideos) return `${g.done} of ${n(g.total, 'problem')} solved`;
-  const parts = [`${g.done} of ${n(g.total, hasProblems ? 'item' : 'video')} done`];
+function summary(g: GroupDetail) {
+  const kinds = g.sources.map((s) => s.kind);
+  const unit = unitOf(kinds, g.total);
+  if (unit.startsWith('problem')) return `${g.done} of ${g.total} ${unit} solved`;
+  if (unit.startsWith('article')) return `${g.done} of ${g.total} ${unit} read`;
+  const hasVideos = kinds.includes('youtube_playlist');
+  const parts = [`${g.done} of ${g.total} ${unit} done`];
   if (g.durationS) parts.push(g.watchedS >= 60 ? `${fmtDuration(g.watchedS)} of ${fmtDuration(g.durationS)} watched` : `${fmtDuration(g.durationS)} of video`);
   const left = timeLeft(g.durationS - g.watchedS, g.paceS);
-  if (left && g.watchedS >= 60) parts.push(left);
+  if (left && g.watchedS >= 60 && hasVideos) parts.push(left);
   return parts.join(' · ');
 }
 
@@ -168,6 +175,35 @@ function VideoSection({ g, sources }: { g: GroupDetail; sources: GroupSource[] }
         </div>
       </section>
     </>
+  );
+}
+
+// ---------- reading ----------
+
+function ReadingSection({ source: s, color, onChange }: { source: GroupSource; color: string; onChange: () => void }) {
+  const unread = (s.items ?? []).filter((i) => i.status !== 'done' && !i.skipped);
+  const toggle = (id: number, status: Status) => api.post(`/items/${id}/status`, { done: status !== 'done' }).then(onChange);
+  return (
+    <section className="card" aria-labelledby={`rl-${s.id}`}>
+      <div className="spread" style={{ marginBottom: 8 }}>
+        <h2 id={`rl-${s.id}`}>
+          {s.title}{' '}
+          <span className="subtle" style={{ fontSize: 14, fontWeight: 500 }}>
+            {unread.length} to read
+          </span>
+        </h2>
+        <a className="btn btn-sm" href={`#/source/${s.id}`}>
+          All {s.total}
+        </a>
+      </div>
+      {unread.length === 0 ? (
+        <p className="muted">Everything here is read. Add articles in the Library.</p>
+      ) : (
+        <div className="list">
+          <ArticleRows items={unread.slice(0, 5)} color={color} onToggle={toggle} />
+        </div>
+      )}
+    </section>
   );
 }
 

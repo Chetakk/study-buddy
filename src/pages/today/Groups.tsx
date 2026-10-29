@@ -242,25 +242,34 @@ function GroupTile({
             ? `Finished on ${new Date(g.finishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}.`
             : 'Finished.'}
         </p>
-      ) : next?.kind === 'problem' ? (
+      ) : next && next.kind !== 'video' ? (
         <div className="next next-problem">
           <a
             className="next-link"
             href={next.url || `#/source/${next.sourceId}`}
             target={next.url ? '_blank' : undefined}
             rel="noreferrer"
-            title={next.url ? 'Open the problem' : undefined}
+            title={next.url ? (next.kind === 'article' ? 'Open the article' : 'Open the problem') : undefined}
           >
-            <span className={`pbadge diff-${next.meta.difficulty || 'none'}`}>{(next.meta.difficulty || '?')[0].toUpperCase()}</span>
+            {next.kind === 'problem' ? (
+              <span className={`pbadge diff-${next.meta.difficulty || 'none'}`}>{(next.meta.difficulty || '?')[0].toUpperCase()}</span>
+            ) : (
+              <span className="pbadge diff-none mono">{Math.max(1, Math.round(next.durationS / 60))}m</span>
+            )}
             <span className="next-t">
               <span className="next-title">{next.title}</span>
               <small>
-                Up next · {next.sourceTitle}
+                {next.kind === 'article' ? 'Up next to read' : `Up next · ${next.sourceTitle}`}
                 {next.meta.difficulty && ` · ${next.meta.difficulty[0].toUpperCase()}${next.meta.difficulty.slice(1)}`}
               </small>
             </span>
           </a>
-          <button className="icon-btn solve" onClick={() => onSolved(next.id)} title="Mark as solved" aria-label={`Mark ${next.title} as solved`}>
+          <button
+            className="icon-btn solve"
+            onClick={() => onSolved(next.id)}
+            title={next.kind === 'article' ? 'Mark as read' : 'Mark as solved'}
+            aria-label={`Mark ${next.title} as ${next.kind === 'article' ? 'read' : 'solved'}`}
+          >
             <Check />
           </button>
         </div>

@@ -2,6 +2,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
+import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -188,4 +189,29 @@ test('playback on youtube.com is tracked by video id, preferring the playing lis
   assert.equal(r.data.status, 'done');
   assert.equal((await call('POST', '/track', { videoId: 'zzzzzzzzzzz', segments: [[0, 10]] })).data.tracked, false);
   assert.equal((await call('POST', '/track', { videoId: 'bad' })).status, 400);
+});
+
+test('articles go into a reading list and count their reading time when read', async () => {
+  const page = http.createServer((_, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' }).end(`<title>A post</title><article>${'word '.repeat(690)}</article>`);
+  });
+  await new Promise<void>((r) => page.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${(page.address() as any).port}/post?utm_source=x`;
+  try {
+    const g = (await call('GET', '/groups')).data[0];
+    const r = await call('POST', '/articles', { groupId: g.id, url });
+    assert.equal(r.data.title, 'A post');
+    assert.equal(r.data.minutes, 3);
+    assert.equal((await call('POST', '/articles', { groupId: g.id, url })).status, 409);
+    const detail = (await call('GET', `/groups/${g.id}`)).data;
+    const list = detail.sources.find((s: any) => s.kind === 'articles');
+    assert.equal(list.items.length, 1);
+    const before = (await call('GET', '/today')).data.studiedTodayS;
+    await call('POST', `/items/${r.data.id}/status`, { done: true });
+    await call('POST', `/items/${r.data.id}/status`, { done: false });
+    await call('POST', `/items/${r.data.id}/status`, { done: true });
+    assert.equal((await call('GET', '/today')).data.studiedTodayS - before, 180);
+  } finally {
+    page.close();
+  }
 });

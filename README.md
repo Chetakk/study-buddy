@@ -56,6 +56,7 @@ Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to 
 - **Today.** The video to pick up (with the parts you've watched and what comes after it), today's study time, streak and overall progress, a Flashcards slot, and a tile for each group you've chosen with **Choose groups**. Tiles are in the order to do them: your order, except groups you've already studied today move down and finished ones go last. Click a tile to open its group. Hover a tile to rename it, change its colour, set a daily goal in minutes (shown as "12 of 30 min today" under the name), remove it from Today, delete it, or drag it to reorder.
 - **Suggestions.** One line under the greeting with the most useful nudge right now, worked out by simple rules (no AI): finish a nearly-watched video, keep a streak alive in the evening, minutes left on a daily goal, a pile of due flashcards, the next problem pattern once you've finished one, or a group you haven't touched in 4+ days. Dismiss one with × and it stays hidden for the day.
 - **Group pages.** Every group has its own page (click it in the sidebar or on Today). A video group shows its next five videos and its playlists, partly-watched first. A problem group like LeetCode shows the next problem, solved counts by difficulty, and every pattern in sheet order with the current one open, plus search and difficulty and status filters. **On Today** adds or removes the group from the Today page.
+- **Articles.** Paste any article link in Library and it goes into the group's reading list, with a reading time estimated from the page's word count. Tick it off when you've read it; the estimated time then counts as study time for the day.
 - **Skip videos.** On a playlist page, hover a video and click the eye to skip it (an intro, a repeated upload). Skipped videos stay listed but don't count toward progress and aren't played next.
 - **Playlist pages.** Reach a playlist from its group page, or from the Watch page (the Group › Playlist links under the title, or the bar above the playlist on the right).
 - **Problem sheets.** Paste a public Google Sheet of coding problems (in Library, same box as playlists) and each pattern becomes a list in the group: problems with difficulty, sub-topic, the problem link and any explanation videos. Tick problems off as you solve them; a solved problem counts toward your streak. The refresh button re-reads the sheet for new problems and keeps your ticks.
@@ -78,5 +79,5 @@ src/         React UI: pages/, components/, lib/
 2. Flashcards: done (see above)
 3. AI-drafted cards from transcripts (free model: Gemini free tier or Ollama), approved in a "Pending review" inbox
 4. Daily planner with a time budget per group, and carry-over of unfinished items
-5. Articles (LeetCode problem sheets are done)
+5. Articles: done (see above)
 6. Chrome extension: done (bulk import and tracking on youtube.com)

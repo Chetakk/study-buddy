@@ -37,8 +37,8 @@ export function WatchPage({ id, focus, setFocus }: { id: number; focus: boolean;
 
   if (error) return <ErrorBox message={error} />;
   if (!item) return <Loading />;
-  // Problems have no player; they live on their pattern's page.
-  if (item.kind === 'problem') {
+  // Problems and articles have no player; they live on their list's page.
+  if (item.kind !== 'video') {
     location.replace(`#/source/${item.sourceId}`);
     return <Loading />;
   }

@@ -1,5 +1,5 @@
 export type Status = 'not_started' | 'in_progress' | 'done';
-export type ItemKind = 'video' | 'problem';
+export type ItemKind = 'video' | 'problem' | 'article';
 
 // Details for items of kind 'problem' (empty for videos).
 export interface ProblemMeta {
@@ -8,6 +8,7 @@ export interface ProblemMeta {
   challenge?: boolean;
   homework?: boolean;
   links?: { label: string; url: string }[];
+  words?: number; // articles
 }
 export type Segment = [number, number];
 
@@ -101,7 +102,7 @@ export interface Sidebar {
 }
 
 export interface SearchHit {
-  kind: 'Group' | 'Playlist' | 'Pattern' | 'Video' | 'Problem' | 'Note';
+  kind: 'Group' | 'Playlist' | 'Pattern' | 'Reading list' | 'Video' | 'Problem' | 'Article' | 'Note';
   title: string;
   sub: string;
   color: string;

@@ -13,6 +13,7 @@ import {
 } from './db.ts';
 import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
 import { fetchSheet, parseProblems, parseSheetUrl } from './sheets.ts';
+import { fetchArticle, normalizeUrl } from './articles.ts';
 import { HttpError } from './http.ts';
 import { addProblemCard, createCard, getCard, listCards, queue, reviewCard, summary as cardSummary, updateCard } from './cards.ts';
 import { backupNow, exportAll, importAll, scheduleBackups } from './backup.ts';
@@ -433,10 +434,10 @@ route('GET', '/api/search', (_, __, url) => {
     : [];
   return [
     ...groups.map((r) => ({ kind: 'Group', title: r.title, sub: '', color: r.color, href: `#/group/${r.id}` })),
-    ...sources.map((r) => ({ kind: r.kind === 'problem_set' ? 'Pattern' : 'Playlist', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.id}` })),
+    ...sources.map((r) => ({ kind: r.kind === 'problem_set' ? 'Pattern' : r.kind === 'articles' ? 'Reading list' : 'Playlist', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.id}` })),
     ...items.map((r) =>
-      r.kind === 'problem'
-        ? { kind: 'Problem', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.sourceId}` }
+      r.kind === 'problem' || r.kind === 'article'
+        ? { kind: r.kind === 'problem' ? 'Problem' : 'Article', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.sourceId}` }
         : { kind: 'Video', title: r.title, sub: r.sub, color: r.color, href: `#/watch/${r.id}` },
     ),
     ...notes.map((r) => ({ kind: 'Note', title: r.body.split('\n')[0].slice(0, 120), sub: r.sub, color: r.color, href: `#/watch/${r.itemId}?t=${Math.floor(r.atS)}` })),
@@ -495,9 +496,9 @@ route('GET', '/api/groups/:id', ([id]) => {
     ...s,
     next: upNext([s.id], 1)[0] ?? null,
     lastAt: (last.get(s.id) as any).at ?? null,
-    items: s.kind === 'problem_set' ? sourceItems(s.id) : undefined,
+    items: s.kind === 'problem_set' || s.kind === 'articles' ? sourceItems(s.id) : undefined,
   }));
-  const videoIds = sources.filter((s: any) => s.kind !== 'problem_set').map((s: any) => s.id);
+  const videoIds = sources.filter((s: any) => s.kind === 'youtube_playlist').map((s: any) => s.id);
   return { ...g, sources, upNext: upNext(videoIds, 5), paceS: paceS(g.id) };
 });
 
@@ -635,12 +636,43 @@ async function importSheet(groupId: number, url: string) {
   return { sections: sections.length, total, added: count() - before };
 }
 
+// Articles go into the group's reading list (one 'articles' source per group, made on first use).
+route('POST', '/api/articles', async (_, b) => {
+  const groupId = Number(b.groupId);
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) throw new HttpError(400, 'Pick a group first');
+  const url = normalizeUrl(String(b.url ?? ''));
+  if (!url) throw new HttpError(400, "That doesn't look like a link");
+  const dupe = db.prepare("SELECT g.name FROM items i JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id WHERE i.kind = 'article' AND i.external_id = ?").get(url) as any;
+  if (dupe) throw new HttpError(409, `This article is already in "${dupe.name}"`);
+  let a;
+  try {
+    a = await fetchArticle(url);
+  } catch (e) {
+    throw new HttpError(422, (e as Error).message);
+  }
+  return tx(() => {
+    let src = db.prepare("SELECT id FROM sources WHERE kind = 'articles' AND group_id = ?").get(groupId) as any;
+    if (!src) {
+      const r = db
+        .prepare(`INSERT INTO sources (group_id, kind, external_id, url, title, position) VALUES (?, 'articles', ?, '', 'Reading list', ?)`)
+        .run(groupId, `articles:${groupId}:${Date.now()}`, nextPosition('sources'));
+      src = { id: Number(r.lastInsertRowid) };
+    }
+    const pos = ((db.prepare('SELECT MAX(position) AS m FROM items WHERE source_id = ?').get(src.id) as any).m ?? -1) + 1;
+    const r = db
+      .prepare(`INSERT INTO items (source_id, kind, external_id, title, url, duration_s, position, meta) VALUES (?, 'article', ?, ?, ?, ?, ?, ?)`)
+      .run(src.id, url, a.title, url, a.readingS, pos, JSON.stringify({ words: a.words }));
+    return { id: Number(r.lastInsertRowid), title: a.title, minutes: Math.round(a.readingS / 60) };
+  });
+});
+
 route('POST', '/api/sheets', (_, b) => importSheet(Number(b.groupId), String(b.url ?? '')));
 
 route('POST', '/api/sources/:id/sync', async ([id]) => {
   const s = db.prepare('SELECT external_id, kind, url, group_id FROM sources WHERE id = ?').get(Number(id)) as any;
   if (!s) throw new HttpError(404, 'Source not found');
   if (s.kind === 'problem_set') return importSheet(s.group_id, s.url);
+  if (s.kind === 'articles') return { added: 0 };
   const pl = await fetchPlaylist(s.external_id);
   const before = (db.prepare('SELECT COUNT(*) AS n FROM items WHERE source_id = ?').get(Number(id)) as any).n;
   tx(() => {
@@ -737,6 +769,11 @@ route('POST', '/api/items/:id/status', ([id], b) => {
        completed_at = excluded.completed_at, updated_at = datetime('now')`,
   ).run(itemId, status, done ? new Date().toISOString() : null);
   if (done) addProblemCard(itemId);
+  // Reading happens outside the app, so a finished article counts its estimated reading time, once.
+  const article = db.prepare("SELECT duration_s AS d FROM items WHERE id = ? AND kind = 'article'").get(itemId) as any;
+  if (done && article && !db.prepare('SELECT 1 FROM activity WHERE item_id = ?').get(itemId)) {
+    db.prepare('INSERT INTO activity (day, item_id, seconds) VALUES (?, ?, ?)').run(localDay(), itemId, article.d);
+  }
   return progressFor(itemId);
 });
 

@@ -8,9 +8,12 @@ export function nextColor(used: string[]): string {
 }
 
 // What a group or source counts: "videos", "problems", or "items" when it mixes both.
+const UNIT: Record<string, string> = { problem_set: 'problem', youtube_playlist: 'video', articles: 'article' };
+
+// What to call a mix of sources' items: "videos", "problems", "articles", or "items" when mixed.
 export function unitOf(kinds: string[], n = 2): string {
-  const set = new Set(kinds);
-  const word = set.size === 1 && set.has('problem_set') ? 'problem' : set.size && !set.has('problem_set') ? 'video' : 'item';
+  const words = new Set(kinds.map((k) => UNIT[k] ?? 'item'));
+  const word = words.size === 1 ? [...words][0] : 'item';
   return n === 1 ? word : `${word}s`;
 }
 
