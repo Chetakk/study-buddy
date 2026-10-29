@@ -77,6 +77,41 @@ export function LibraryPage() {
           run={run}
         />
       ))}
+
+      <YourData run={run} busy={busy} />
+    </div>
+  );
+}
+
+// Export downloads everything as one JSON file; import replaces all data with such a file.
+function YourData({ run, busy }: { run: (label: string, fn: () => Promise<unknown>, done?: (r: any) => string) => void; busy: string | null }) {
+  const download = async () => {
+    const data = await api.get('/export');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    a.download = `study-buddy-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const upload = (file: File | undefined) => {
+    if (!file || !confirm('Replace all your data with this file? A backup of the current data is saved first.')) return;
+    run('import-data', async () => api.post('/import', JSON.parse(await file.text())), () => 'Data imported');
+  };
+  return (
+    <div className="card stack" style={{ gap: 12 }}>
+      <h2>Your data</h2>
+      <p className="muted" style={{ fontSize: 13 }}>
+        A backup is saved every day (the last 7 are kept next to the database). Export a file to keep a copy elsewhere.
+      </p>
+      <div className="row">
+        <button className="btn" onClick={() => run('export', download)} disabled={busy === 'export'}>
+          Export
+        </button>
+        <label className="btn">
+          {busy === 'import-data' ? 'Importing…' : 'Import'}
+          <input type="file" accept="application/json,.json" hidden onChange={(e) => upload(e.target.files?.[0])} />
+        </label>
+      </div>
     </div>
   );
 }

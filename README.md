@@ -38,7 +38,7 @@ Playlists already in Study Buddy are marked and skipped. Private playlists can't
 
 Needs Node 22.13 or newer. It uses Node's built-in SQLite, so there are no native modules to build. No YouTube API key is needed.
 
-Data is stored in `~/.local/share/study-buddy/study.db`. Set `STUDY_BUDDY_DB` to use a different file, or `PORT` to change the port.
+Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to `backups/` next to it once a day (the last 7 are kept), and **Library → Your data** exports or imports everything as one JSON file. Set `STUDY_BUDDY_DB` to use a different file, or `PORT` to change the port.
 
 ## What's in Phase 1
 

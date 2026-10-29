@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const dbPath =
+export const dbPath =
   process.env.STUDY_BUDDY_DB ?? path.join(os.homedir(), '.local/share/study-buddy/study.db');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
@@ -81,6 +81,9 @@ if (!itemCols.includes('meta')) db.exec("ALTER TABLE items ADD COLUMN meta TEXT 
 // Groups chosen for the Today page. Existing groups start on it, so nothing disappears.
 const groupCols = (db.prepare('PRAGMA table_info(groups)').all() as any[]).map((c) => c.name);
 if (!groupCols.includes('on_today')) db.exec('ALTER TABLE groups ADD COLUMN on_today INTEGER NOT NULL DEFAULT 1');
+
+// Every table, parents before children; used by export and import.
+export const TABLES = ['groups', 'sources', 'items', 'progress', 'notes', 'activity'];
 
 // A video counts as done once this share of its unique seconds has been played.
 export const DONE_RATIO = 0.9;

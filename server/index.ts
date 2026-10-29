@@ -13,6 +13,7 @@ import {
 } from './db.ts';
 import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
 import { fetchSheet, parseProblems, parseSheetUrl } from './sheets.ts';
+import { backupNow, exportAll, importAll, scheduleBackups } from './backup.ts';
 
 const PORT = Number(process.env.PORT ?? 7314);
 const EXTENSION_ORIGIN = 'chrome-extension://akpgchnbfjjddggapkcmlbjpdfpconii';
@@ -632,6 +633,18 @@ route('GET', '/api/stats', () => {
   return { groups: listGroups(), days, week, totalStudiedS: totalS, streak: streak() };
 });
 
+route('GET', '/api/export', () => exportAll());
+
+route('POST', '/api/import', (_, b) => {
+  try {
+    return { counts: importAll(b) };
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
+  }
+});
+
+route('POST', '/api/backup', () => ({ file: backupNow() }));
+
 // ---------- server ----------
 
 const MIME: Record<string, string> = {
@@ -702,6 +715,8 @@ const server = http.createServer(async (req, res) => {
     send(status, { error: err instanceof Error ? err.message : String(err) });
   }
 });
+
+scheduleBackups();
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Study Buddy API on http://127.0.0.1:${PORT}`);
