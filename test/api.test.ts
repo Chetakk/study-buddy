@@ -133,3 +133,27 @@ test('replaying a long-finished video records a rewatch', async () => {
   assert.equal(r.data.rewatchedAt, null);
   assert.equal(r.data.status, 'done');
 });
+
+test('cards: create, queue, review and piles', async () => {
+  const id = await firstItem();
+  const card = (await call('POST', '/cards', { front: 'What is a gradient?', back: 'Direction of steepest ascent', itemId: id, atS: 30 })).data;
+  assert.equal(card.pile, 'new');
+  assert.equal(card.groupName, 'ML');
+  assert.equal((await call('POST', '/cards', { front: '' })).status, 400);
+
+  let q = (await call('GET', '/cards/queue')).data;
+  assert.equal(q.length, 1);
+  assert.ok(q[0].intervals[3] > q[0].intervals[1]);
+
+  const after = (await call('POST', `/cards/${card.id}/review`, { rating: 3 })).data;
+  assert.equal(after.reps, 1);
+  assert.equal(after.pile, 'learning');
+  q = (await call('GET', '/cards/queue')).data;
+  assert.equal(q.length, 0);
+  const sum = (await call('GET', '/cards/summary')).data;
+  assert.equal(sum.reviewedToday, 1);
+  assert.equal(sum.due, 0);
+  assert.ok(sum.nextDue);
+  assert.equal((await call('GET', '/cards?pile=learning')).data.length, 1);
+  assert.equal((await call('GET', '/cards?q=gradient')).data.length, 1);
+});

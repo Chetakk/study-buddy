@@ -66,6 +66,38 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Flashcards. A card can point at a video moment (item_id + at_s) or a problem (kind 'problem').
+  -- Memory fields follow FSRS (server/fsrs.ts); due is an ISO timestamp.
+  CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY,
+    group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    at_s REAL,
+    kind TEXT NOT NULL DEFAULT 'basic',      -- 'basic' or 'problem'
+    front TEXT NOT NULL,
+    back TEXT NOT NULL DEFAULT '',
+    origin TEXT NOT NULL DEFAULT 'manual',   -- 'manual', 'problem' or 'ai'
+    pending INTEGER NOT NULL DEFAULT 0,      -- drafted (e.g. by AI) and waiting for approval
+    state TEXT NOT NULL DEFAULT 'new',
+    stability REAL NOT NULL DEFAULT 0,
+    difficulty REAL NOT NULL DEFAULT 0,
+    reps INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    due TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_review TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS cards_due ON cards (pending, due);
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY,
+    card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL,
+    state TEXT NOT NULL,                     -- state before this review
+    day TEXT NOT NULL,                       -- local day, for streaks
+    reviewed_at TEXT NOT NULL
+  );
+
   -- Seconds of real study time per local day, for streaks and the heatmap.
   CREATE TABLE IF NOT EXISTS activity (
     day TEXT NOT NULL,
@@ -91,7 +123,7 @@ const groupCols = (db.prepare('PRAGMA table_info(groups)').all() as any[]).map((
 if (!groupCols.includes('on_today')) db.exec('ALTER TABLE groups ADD COLUMN on_today INTEGER NOT NULL DEFAULT 1');
 
 // Every table, parents before children; used by export and import.
-export const TABLES = ['groups', 'sources', 'items', 'progress', 'notes', 'activity'];
+export const TABLES = ['groups', 'sources', 'items', 'progress', 'notes', 'activity', 'cards', 'reviews'];
 
 export function tx<T>(fn: () => T): T {
   db.exec('BEGIN');

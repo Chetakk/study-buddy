@@ -13,19 +13,14 @@ import {
 } from './db.ts';
 import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
 import { fetchSheet, parseProblems, parseSheetUrl } from './sheets.ts';
+import { HttpError } from './http.ts';
+import { addProblemCard, createCard, getCard, listCards, queue, reviewCard, summary as cardSummary, updateCard } from './cards.ts';
 import { backupNow, exportAll, importAll, scheduleBackups } from './backup.ts';
 
 const PORT = Number(process.env.PORT ?? 7314);
 const EXTENSION_ORIGIN = 'chrome-extension://akpgchnbfjjddggapkcmlbjpdfpconii';
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
-class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
 
 // ---------- queries ----------
 
@@ -97,6 +92,7 @@ function studyDays(): string[] {
     )
     .all() as any[];
   for (const r of solved) days.add(localDay(new Date(r.at)));
+  for (const r of db.prepare('SELECT DISTINCT day FROM reviews').all() as any[]) days.add(r.day);
   return [...days].sort();
 }
 
@@ -629,6 +625,7 @@ route('POST', '/api/items/:id/status', ([id], b) => {
      ON CONFLICT (item_id) DO UPDATE SET status = excluded.status,
        completed_at = excluded.completed_at, updated_at = datetime('now')`,
   ).run(itemId, status, done ? new Date().toISOString() : null);
+  if (done) addProblemCard(itemId);
   return progressFor(itemId);
 });
 
@@ -683,6 +680,20 @@ route('GET', '/api/stats', () => {
   const totalS = (db.prepare('SELECT COALESCE(SUM(seconds), 0) AS s FROM activity').get() as any).s;
   return { groups: listGroups(), days, week, totalStudiedS: totalS, streak: streak() };
 });
+
+// ---------- flashcards ----------
+
+route('GET', '/api/cards', (_, __, url) => listCards(url));
+route('GET', '/api/cards/summary', () => cardSummary());
+route('GET', '/api/cards/queue', (_, __, url) => queue(Number(url.searchParams.get('group')) || undefined));
+route('POST', '/api/cards', (_, b) => createCard(b));
+route('GET', '/api/cards/:id', ([id]) => getCard(Number(id)));
+route('PATCH', '/api/cards/:id', ([id], b) => updateCard(Number(id), b));
+route('DELETE', '/api/cards/:id', ([id]) => {
+  db.prepare('DELETE FROM cards WHERE id = ?').run(Number(id));
+  return { ok: true };
+});
+route('POST', '/api/cards/:id/review', ([id], b) => reviewCard(Number(id), Number(b.rating)));
 
 route('GET', '/api/export', () => exportAll());
 
