@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { api } from '../../lib/api.ts';
+import { useLoad } from '../../lib/useLoad.ts';
+import { dueText } from '../Cards.tsx';
 import { fmtClock, fmtDuration, pct, ratio, unitOf } from '../../lib/format.ts';
 import { Cards, Play, Plus } from '../../components/icons.tsx';
-import type { ResumeItem, Today } from '../../types.ts';
+import type { CardSummary, ResumeItem, Today } from '../../types.ts';
 import { cVar, minutes } from './shared.ts';
 
 export function ResumeCard({ r, onChange }: { r: ResumeItem | null; onChange: () => void }) {
@@ -134,21 +136,41 @@ export function TodayCard({ data }: { data: Today }) {
 }
 
 export function FlashcardsCard() {
+  const { data: s } = useLoad(() => api.get<CardSummary>('/cards/summary'));
+  const piles: [string, number | undefined][] = [
+    ['Due', s?.due],
+    ['Learning', s ? s.piles.learning + s.piles.struggling : undefined],
+    ['Mastered', s?.piles.mastered],
+  ];
   return (
     <section className="card panel" aria-labelledby="fc-h">
       <div className="panel-h">
         <span className="panel-icon">
           <Cards />
         </span>
-        <h2 id="fc-h">Flashcards</h2>
-        <span className="pill">Soon</span>
+        <h2 id="fc-h">
+          <a href="#/cards" className="plain-link">
+            Flashcards
+          </a>
+        </h2>
+        {s && s.reviewedToday > 0 && <span className="pill">{s.reviewedToday} today</span>}
       </div>
-      <p className="muted">Cards you make from video moments will show up here when they're due.</p>
+      {!s ? (
+        <p className="muted">…</p>
+      ) : s.total === 0 ? (
+        <p className="muted">Make cards from notes while you watch (press C), or solve a problem to have it come back for review.</p>
+      ) : s.due ? (
+        <a className="btn btn-primary" href="#/review">
+          <Play /> Review {s.due} {s.due === 1 ? 'card' : 'cards'}
+        </a>
+      ) : (
+        <p className="muted">All caught up. {dueText(s)}.</p>
+      )}
       <div className="piles">
-        {['Due', 'Learning', 'Mastered'].map((p) => (
+        {piles.map(([p, n]) => (
           <div key={p}>
             <span>{p}</span>
-            <b>–</b>
+            <b className={p === 'Due' && n ? 'on' : ''}>{n ?? '–'}</b>
           </div>
         ))}
       </div>

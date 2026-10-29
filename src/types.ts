@@ -178,3 +178,44 @@ export interface NoteHit extends Note {
   groupName: string;
   groupColor: string;
 }
+
+export type Pile = 'pending' | 'new' | 'learning' | 'review' | 'mastered' | 'struggling';
+
+export interface Card {
+  id: number;
+  groupId: number;
+  groupName: string;
+  groupColor: string;
+  itemId: number | null;
+  itemTitle: string | null;
+  itemKind: ItemKind | null;
+  itemUrl: string | null;
+  sourceId: number | null;
+  sourceTitle: string | null;
+  atS: number | null;
+  kind: 'basic' | 'problem';
+  front: string;
+  back: string;
+  origin: 'manual' | 'problem' | 'ai';
+  pile: Pile;
+  state: string;
+  due: string;
+  reps: number;
+  lapses: number;
+  stabilityDays: number;
+  problem: { difficulty: string; concept: string; links: { label: string; url: string }[] } | null;
+  createdAt: string;
+}
+
+// Milliseconds until the card comes back for each rating (1 Again … 4 Easy).
+export type QueueCard = Card & { intervals: Record<1 | 2 | 3 | 4, number> };
+
+export interface CardSummary {
+  total: number;
+  piles: Record<Pile, number>;
+  due: number;
+  dueReviews: number;
+  newToday: number;
+  nextDue: string | null;
+  reviewedToday: number;
+}

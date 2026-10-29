@@ -57,6 +57,7 @@ Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to 
 - **Playlist pages.** Reach a playlist from its group page, or from the Watch page (the Group › Playlist links under the title, or the bar above the playlist on the right).
 - **Problem sheets.** Paste a public Google Sheet of coding problems (in Library, same box as playlists) and each pattern becomes a list in the group: problems with difficulty, sub-topic, the problem link and any explanation videos. Tick problems off as you solve them; a solved problem counts toward your streak. The refresh button re-reads the sheet for new problems and keeps your ticks.
 - **Sidebar.** Your groups with their progress, your streak and the theme toggle. Press <kbd>[</kbd> to collapse it to icons, and <kbd>Ctrl</kbd>+<kbd>K</kbd> to search every group, playlist and video. On a phone it becomes a bottom tab bar.
+- **Flashcards.** Press <kbd>C</kbd> while watching (or click the card icon on a note) to make a card tied to that moment, or add cards on the Flashcards page. Review shows the question; <kbd>Space</kbd> reveals the answer and <kbd>1</kbd>–<kbd>4</kbd> rate it (Again, Hard, Good, Easy). Scheduling uses FSRS, so cards you find hard come back sooner; up to 20 new cards are introduced a day. Cards sort into piles: New, Learning, Review, Mastered (stable for 3+ weeks) and Struggling (forgotten 3+ times). Solving a problem makes a "solve again" card, first due about 4 days later. Reviews count toward your streak.
 - **Notes.** Every note in one place, grouped by video and searchable. Click a time to open the video at that moment. Notes support **bold**, *italic*, `code`, links and `- ` lists, and <kbd>Ctrl</kbd>+<kbd>K</kbd> finds them too.
 - **Progress.** Overall numbers, a year-long study heatmap, the last 7 days by group (as a chart or a table), and per-playlist breakdowns.
 
@@ -71,7 +72,7 @@ src/         React UI: pages/, components/, lib/
 
 ## Next phases
 
-2. Flashcards: cards linked to timestamps, review with FSRS spaced repetition, piles (New / Learning / Review / Mastered / Struggling)
+2. Flashcards: done (see above)
 3. AI-drafted cards from transcripts (free model: Gemini free tier or Ollama), approved in a "Pending review" inbox
 4. Daily planner with a time budget per group, and carry-over of unfinished items
 5. Articles (LeetCode problem sheets are done)

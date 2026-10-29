@@ -14,6 +14,8 @@ import { GroupPage } from './pages/Group.tsx';
 import { WatchPage } from './pages/Watch.tsx';
 import { ProgressPage } from './pages/Progress.tsx';
 import { NotesPage } from './pages/Notes.tsx';
+import { CardsPage } from './pages/Cards.tsx';
+import { ReviewPage } from './pages/Review.tsx';
 import type { Sidebar } from './types.ts';
 
 type Theme = 'dark' | 'light';
@@ -47,6 +49,7 @@ interface InstallPrompt extends Event {
 const NAV = [
   ['today', '#/', 'Today', <Home key="i" />],
   ['library', '#/library', 'Library', <Videos key="i" />],
+  ['cards', '#/cards', 'Flashcards', <Cards key="i" />],
   ['progress', '#/progress', 'Progress', <Chart key="i" />],
   ['notes', '#/notes', 'Notes', <Pencil key="i" />],
 ] as const;
@@ -108,7 +111,7 @@ export function App() {
   }, []);
 
   // Group, playlist and video pages belong to a group in the sidebar, not to a main section.
-  const section = ['source', 'group', 'watch'].includes(route.name) ? '' : route.name;
+  const section = ['source', 'group', 'watch'].includes(route.name) ? '' : route.name === 'review' ? 'cards' : route.name;
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
   const themeLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 
@@ -131,6 +134,12 @@ export function App() {
       break;
     case 'notes':
       page = <NotesPage />;
+      break;
+    case 'cards':
+      page = <CardsPage />;
+      break;
+    case 'review':
+      page = <ReviewPage />;
       break;
     default:
       page = <TodayPage />;
@@ -194,11 +203,6 @@ export function App() {
                     <span className="lbl">{label}</span>
                   </a>
                 ))}
-                <span className="soon-link" aria-disabled="true" title="Flashcards are coming soon">
-                  <Cards />
-                  <span className="lbl">Flashcards</span>
-                  <span className="pill lbl">Soon</span>
-                </span>
                 <button onClick={() => setSearching(true)} title="Search (Ctrl K)">
                   <Search />
                   <span className="lbl">Search</span>
@@ -261,14 +265,10 @@ export function App() {
       {!focus && (
         <nav className="tabbar" aria-label="Main">
           {NAV.map(([key, href, label, icon]) => (
-            <TabLink key={key} href={href} on={section === key} label={label}>
+            <TabLink key={key} href={href} on={section === key} label={label === 'Flashcards' ? 'Cards' : label}>
               {icon}
             </TabLink>
           ))}
-          <span className="tab-soon" aria-disabled="true" title="Flashcards are coming soon">
-            <Cards />
-            Cards
-          </span>
         </nav>
       )}
 

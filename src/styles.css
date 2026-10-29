@@ -650,3 +650,38 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 .list-row.skipped .video-meta, .list-row.skipped .thumb, .pl-item.skipped { opacity: 0.45; }
 .list-row.skipped .video-title { text-decoration: line-through; }
 @media (hover: none) { .skip-btn { opacity: 1; } }
+
+/* ---------- flashcards ---------- */
+.cards-search { max-width: 260px; }
+.card-row { grid-template-columns: 14px 1fr auto; }
+.card-row > .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); justify-self: center; }
+.card-row .row-actions .icon-btn { opacity: 0; }
+.card-row:hover .row-actions .icon-btn, .card-row .row-actions .icon-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .card-row .row-actions .icon-btn { opacity: 1; } }
+.card-row .video-title .note-text p, .card-row .card-back .note-text p { display: inline; }
+.card-back { color: var(--text-muted); }
+.card-row .video-sub a { color: inherit; }
+.pile-struggling { color: var(--danger); }
+.pile-mastered { color: var(--text-main); }
+
+.review { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.review-card { padding: 26px; display: flex; flex-direction: column; gap: 22px; min-height: 340px; }
+.review-card .kicker { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-subtle); font-weight: 600; }
+.review-card .kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.review-card .pill { text-transform: capitalize; }
+.review-front h2 { font-size: clamp(20px, 3vw, 26px); font-weight: 750; letter-spacing: -.02em; line-height: 1.3; }
+.review-front .diff-chip { margin-top: 10px; display: inline-block; text-transform: capitalize; }
+.review-back { border-top: 1px solid var(--glass-border); padding-top: 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; font-size: 16px; }
+.review-actions { margin-top: auto; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ratings { margin-top: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ratings .rate { flex-direction: column; gap: 2px; padding: 10px 6px; }
+.ratings .rate small { color: var(--text-subtle); font-size: 12px; }
+.ratings .rate-3 { border-color: var(--c); }
+@media (max-width: 520px) { .ratings { grid-template-columns: repeat(2, 1fr); } .review-card { padding: 18px; } }
+.review-done { max-width: 560px; margin: 0 auto; }
+.plain-link { color: inherit; text-decoration: none; }
+.plain-link:hover { text-decoration: underline; }
+.piles b.on { color: var(--text-main); }
+.note-tools { display: flex; gap: 2px; }
+.note:hover .note-tools .icon-btn, .note-tools .icon-btn:focus-visible { opacity: 1; }
+.side .card-form { padding: 12px; box-shadow: none; }

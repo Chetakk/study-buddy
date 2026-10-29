@@ -7,8 +7,9 @@ import { isPlayback } from '../../shared/segments.ts';
 import { PlayerState, loadYouTube, type YTPlayer } from '../lib/youtube.ts';
 import { ErrorBox, GroupDot, Loading, Thumb } from '../components/ui.tsx';
 import { NoteText } from '../components/NoteText.tsx';
-import { Check, Expand, Next, Prev, Shrink, Trash } from '../components/icons.tsx';
-import type { ItemDetail, Note, Progress, Segment } from '../types.ts';
+import { CardForm } from './Cards.tsx';
+import { Cards, Check, Expand, Next, Prev, Shrink, Trash } from '../components/icons.tsx';
+import type { Card, ItemDetail, Note, Progress, Segment } from '../types.ts';
 
 const FLUSH_EVERY_S = 10;
 const AUTO_NEXT_S = 8;
@@ -67,7 +68,10 @@ function Watch({
   const [progress, setProgress] = useState<Progress>(item.progress);
   const [live, setLive] = useState<Segment[]>([]);
   const [now, setNow] = useState(item.progress.positionS);
-  const [tab, setTab] = useState<'playlist' | 'notes'>('playlist');
+  const [tab, setTab] = useState<'playlist' | 'notes' | 'cards'>('playlist');
+  const [cards, setCards] = useState<Card[]>([]);
+  // The card being written: its prefilled text and the video time it's tied to.
+  const [draft, setDraft] = useState<{ front?: string; back?: string; atS: number } | null>(null);
   const [notes, setNotes] = useState<Note[]>(item.notes);
   const [toast, setToast] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
@@ -253,6 +257,16 @@ function Watch({
     noteAt.current = 0;
   };
 
+  useEffect(() => {
+    api.get<Card[]>(`/cards?item=${item.id}`).then(setCards, () => {});
+  }, [item.id]);
+
+  const startCard = (init?: { back?: string; atS?: number }) => {
+    setDraft({ back: init?.back, atS: init?.atS ?? playerRef.current?.getCurrentTime() ?? now });
+    setTab('cards');
+    setFocus(false);
+  };
+
   const deleteNote = async (noteId: number) => {
     await api.del(`/notes/${noteId}`);
     setNotes((n) => n.filter((x) => x.id !== noteId));
@@ -284,6 +298,9 @@ function Watch({
       else if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
         startNote();
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        startCard();
       } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
         if (el.closest('button, a, [role="slider"]') && e.key === ' ') return;
         e.preventDefault();
@@ -405,6 +422,9 @@ function Watch({
           <button role="tab" aria-selected={tab === 'notes'} className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>
             Notes <span className="mono subtle">{notes.length}</span>
           </button>
+          <button role="tab" aria-selected={tab === 'cards'} className={tab === 'cards' ? 'active' : ''} onClick={() => setTab('cards')}>
+            Cards <span className="mono subtle">{cards.length}</span>
+          </button>
         </div>
 
         {tab === 'playlist' && (
@@ -423,6 +443,59 @@ function Watch({
                 <Thumb src={p.thumbnail} durationS={p.durationS} watched={ratio(p.watchedS, p.durationS)} color={item.groupColor} />
                 <span className="video-title">{p.title}</span>
               </a>
+            ))}
+          </div>
+        ) : tab === 'cards' ? (
+          <div className="side-body stack" style={{ gap: 10 }}>
+            {draft ? (
+              <>
+                <div className="subtle" style={{ fontSize: 12 }}>
+                  New card at {fmtClock(draft.atS)}
+                </div>
+                <CardForm
+                  key={`${draft.atS}-${draft.back ?? ''}`}
+                  fixedGroup
+                  initial={draft}
+                  onSave={async (body) => {
+                    const card = await api.post<Card>('/cards', { ...body, itemId: item.id, atS: draft.atS });
+                    setCards((c) => [...c, card].sort((a, b) => (a.atS ?? 0) - (b.atS ?? 0)));
+                    setDraft(null);
+                    showToast('Card added');
+                  }}
+                  onClose={() => setDraft(null)}
+                />
+              </>
+            ) : (
+              <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => startCard()}>
+                <Cards /> New card at {fmtClock(now)} <kbd>C</kbd>
+              </button>
+            )}
+            {cards.length === 0 && !draft && (
+              <p className="muted" style={{ fontSize: 14 }}>
+                No cards for this video yet. Write a question you should be able to answer after watching.
+              </p>
+            )}
+            {cards.map((c) => (
+              <div key={c.id} className="note">
+                <button className="time" onClick={() => c.atS != null && seek(c.atS)} title="Jump to this moment">
+                  {fmtClock(c.atS ?? 0)}
+                </button>
+                <div className="body">
+                  <NoteText body={c.front} />
+                  {c.back && (
+                    <div className="subtle">
+                      <NoteText body={c.back} />
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="icon-btn"
+                  onClick={() => api.del(`/cards/${c.id}`).then(() => setCards((x) => x.filter((y) => y.id !== c.id)))}
+                  title="Delete card"
+                >
+                  <Trash />
+                </button>
+              </div>
             ))}
           </div>
         ) : (
@@ -455,16 +528,21 @@ function Watch({
                 <div className="body">
                   <NoteText body={n.body} />
                 </div>
-                <button className="icon-btn" onClick={() => deleteNote(n.id)} title="Delete note">
-                  <Trash />
-                </button>
+                <span className="note-tools">
+                  <button className="icon-btn" onClick={() => startCard({ back: n.body, atS: n.atS })} title="Make a card from this note">
+                    <Cards />
+                  </button>
+                  <button className="icon-btn" onClick={() => deleteNote(n.id)} title="Delete note">
+                    <Trash />
+                  </button>
+                </span>
               </div>
             ))}
           </div>
         )}
         <div className="subtle" style={{ fontSize: 12, marginTop: 10 }}>
           {fmtDuration(duration)} video{speed !== 1 && ` · ${speed}×`} · <kbd>K</kbd> play · <kbd>J</kbd>/<kbd>L</kbd> ±10s ·{' '}
-          <kbd>&lt;</kbd>/<kbd>&gt;</kbd> speed · <kbd>F</kbd> focus · <kbd>N</kbd> note
+          <kbd>&lt;</kbd>/<kbd>&gt;</kbd> speed · <kbd>F</kbd> focus · <kbd>N</kbd> note · <kbd>C</kbd> card
         </div>
       </aside>
 
