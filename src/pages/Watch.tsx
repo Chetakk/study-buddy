@@ -3,6 +3,7 @@ import { api } from '../lib/api.ts';
 import { useLoad } from '../lib/useLoad.ts';
 import { navigate } from '../lib/router.ts';
 import { colorVar, coveredSeconds, fmtClock, fmtDuration, mergeSegments, pct, ratio } from '../lib/format.ts';
+import { isPlayback } from '../../shared/segments.ts';
 import { PlayerState, loadYouTube, type YTPlayer } from '../lib/youtube.ts';
 import { ErrorBox, GroupDot, Loading, Thumb } from '../components/ui.tsx';
 import { Check, Expand, Next, Prev, Shrink, Trash } from '../components/icons.tsx';
@@ -135,10 +136,9 @@ function Watch({
           if (lastT.current !== null) {
             const dt = t - lastT.current;
             const elapsed = (wall - lastWall.current) / 1000;
-            // A forward step no bigger than real time × speed is playback; anything else is a seek.
-            if (dt > 0 && dt <= elapsed * p.getPlaybackRate() + 1.5) {
+            if (isPlayback(dt, elapsed, p.getPlaybackRate())) {
               pending.current.push([lastT.current, t]);
-              setLive(mergeSegments(pending.current.map((s) => [...s] as Segment)));
+              setLive(mergeSegments(pending.current));
             }
             playedS.current += Math.min(elapsed, 5);
           }

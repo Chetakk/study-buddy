@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+export { DONE_RATIO, mergeSegments, coveredSeconds, isDone, type Segment } from '../shared/segments.ts';
+
 export const dbPath =
   process.env.STUDY_BUDDY_DB ?? path.join(os.homedir(), '.local/share/study-buddy/study.db');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -85,9 +87,6 @@ if (!groupCols.includes('on_today')) db.exec('ALTER TABLE groups ADD COLUMN on_t
 // Every table, parents before children; used by export and import.
 export const TABLES = ['groups', 'sources', 'items', 'progress', 'notes', 'activity'];
 
-// A video counts as done once this share of its unique seconds has been played.
-export const DONE_RATIO = 0.9;
-
 export function tx<T>(fn: () => T): T {
   db.exec('BEGIN');
   try {
@@ -103,28 +102,4 @@ export function tx<T>(fn: () => T): T {
 export function localDay(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-export type Segment = [number, number];
-
-export function mergeSegments(segments: Segment[]): Segment[] {
-  const sorted = segments
-    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b > a)
-    .sort((x, y) => x[0] - y[0]);
-  const out: Segment[] = [];
-  for (const [a, b] of sorted) {
-    const last = out[out.length - 1];
-    // Ranges closer than a second apart are joined, so 1s polling leaves no gaps.
-    if (last && a <= last[1] + 1) last[1] = Math.max(last[1], b);
-    else out.push([a, b]);
-  }
-  return out.map(([a, b]) => [Math.round(a * 10) / 10, Math.round(b * 10) / 10]);
-}
-
-export function coveredSeconds(segments: Segment[], duration: number): number {
-  let total = 0;
-  for (const [a, b] of segments) {
-    total += Math.max(0, Math.min(b, duration || b) - Math.max(0, a));
-  }
-  return Math.round(total);
 }

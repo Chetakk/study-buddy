@@ -8,7 +8,7 @@ import {
   localDay,
   mergeSegments,
   coveredSeconds,
-  DONE_RATIO,
+  isDone,
   type Segment,
 } from './db.ts';
 import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
@@ -562,7 +562,7 @@ route('POST', '/api/items/:id/progress', ([id], b) => {
     let status = prev.status;
     let completedAt = prev.completedAt;
     if (status !== 'done') {
-      if (item.duration_s && watched >= item.duration_s * DONE_RATIO) {
+      if (isDone(watched, item.duration_s)) {
         status = 'done';
         completedAt = new Date().toISOString();
       } else if (watched > 0) {

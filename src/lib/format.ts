@@ -1,5 +1,3 @@
-import type { Segment } from '../types.ts';
-
 // Categorical slots in validated order. New groups take the next unused slot.
 export const GROUP_COLORS = ['blue', 'orange', 'aqua', 'yellow', 'magenta', 'green', 'violet', 'red'] as const;
 
@@ -38,17 +36,4 @@ export function fmtClock(s: number): string {
 export const ratio = (part: number, whole: number) => (whole > 0 ? Math.min(part / whole, 1) : 0);
 export const pct = (part: number, whole: number) => `${Math.round(ratio(part, whole) * 100)}%`;
 
-// Mirrors server/db.ts mergeSegments, so the strip updates live between saves.
-export function mergeSegments(segments: Segment[]): Segment[] {
-  const sorted = segments.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
-  const out: Segment[] = [];
-  for (const [a, b] of sorted) {
-    const last = out[out.length - 1];
-    if (last && a <= last[1] + 1) last[1] = Math.max(last[1], b);
-    else out.push([a, b]);
-  }
-  return out;
-}
-
-export const coveredSeconds = (segments: Segment[], duration: number) =>
-  segments.reduce((t, [a, b]) => t + Math.max(0, Math.min(b, duration || b) - Math.max(0, a)), 0);
+export { mergeSegments, coveredSeconds } from '../../shared/segments.ts';

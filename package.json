@@ -7,7 +7,8 @@
     "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts"
   },
   "engines": {
     "node": ">=22.13"

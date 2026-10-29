@@ -10,6 +10,8 @@ npm run build
 npm start          # http://127.0.0.1:7314
 ```
 
+`npm test` runs the tests (watch-time maths and the API against a throwaway database).
+
 While developing, `npm run dev` runs the API (restarting on changes) and Vite with hot reload at http://localhost:5173.
 
 ### Install it as an app
@@ -58,7 +60,9 @@ Data is stored in `~/.local/share/study-buddy/study.db`. A snapshot is saved to 
 ## Layout
 
 ```
-server/      Node API: index.ts (routes), db.ts (schema), youtube.ts (playlist import)
+server/      Node API: index.ts (routes), db.ts (schema), youtube.ts (playlist import), backup.ts
+shared/      Code used by both server and UI (watch-time maths)
+test/        node:test tests
 src/         React UI: pages/, components/, lib/
 ```
 
