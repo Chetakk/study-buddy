@@ -663,8 +663,24 @@ route('DELETE', '/api/sources/:id', ([id]) => {
 route('GET', '/api/items/:id', ([id]) => itemDetail(Number(id)));
 
 // Called by the player every few seconds with the ranges played since the last call.
-route('POST', '/api/items/:id/progress', ([id], b) => {
-  const itemId = Number(id);
+route('POST', '/api/items/:id/progress', ([id], b) => recordProgress(Number(id), b));
+
+// The extension reports playback on youtube.com by video id. Videos not in Study Buddy are ignored;
+// a video in several playlists counts toward the one being played (list=…) if it's there.
+route('POST', '/api/track', (_, b) => {
+  const videoId = String(b.videoId ?? '');
+  if (!/^[\w-]{11}$/.test(videoId)) throw new HttpError(400, 'Missing video id');
+  const item = db
+    .prepare(
+      `SELECT i.id, i.title FROM items i JOIN sources s ON s.id = i.source_id
+       WHERE i.kind = 'video' AND i.external_id = ? ORDER BY (s.external_id = ?) DESC, i.id LIMIT 1`,
+    )
+    .get(videoId, String(b.listId ?? '')) as any;
+  if (!item) return { tracked: false };
+  return { tracked: true, itemId: item.id, title: item.title, ...recordProgress(item.id, b) };
+});
+
+function recordProgress(itemId: number, b: any) {
   const item = db.prepare('SELECT duration_s FROM items WHERE id = ?').get(itemId) as any;
   if (!item) throw new HttpError(404, 'Item not found');
   const reported = Math.round(Number(b.durationS) || 0);
@@ -708,7 +724,7 @@ route('POST', '/api/items/:id/progress', ([id], b) => {
     }
     return progressFor(itemId);
   });
-});
+}
 
 route('POST', '/api/items/:id/status', ([id], b) => {
   const itemId = Number(id);

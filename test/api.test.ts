@@ -181,3 +181,11 @@ test('suggestions include a nearly finished video', async () => {
   const s = (await call('GET', '/suggestions')).data;
   assert.ok(s.some((x: any) => x.id === `finish-${item.id}` && x.text.includes('about 3 min left')), JSON.stringify(s));
 });
+
+test('playback on youtube.com is tracked by video id, preferring the playing list', async () => {
+  const r = await call('POST', '/track', { videoId: 'ccccccccccc', listId: 'PLsuggest', segments: [[400, 600]], positionS: 600, playedS: 30 });
+  assert.equal(r.data.tracked, true);
+  assert.equal(r.data.status, 'done');
+  assert.equal((await call('POST', '/track', { videoId: 'zzzzzzzzzzz', segments: [[0, 10]] })).data.tracked, false);
+  assert.equal((await call('POST', '/track', { videoId: 'bad' })).status, 400);
+});

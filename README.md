@@ -28,7 +28,7 @@ systemctl --user enable --now study-buddy
 
 After pulling changes, run `npm run build` and `systemctl --user restart study-buddy`. The app icons are drawn by `scripts/make-icons.py`.
 
-### Import many playlists at once (Chrome extension)
+### Chrome extension: bulk import, and tracking on youtube.com
 
 The extension in `extension/` reads every playlist on a YouTube page and imports the ones you tick, one after another, into the group you pick.
 
@@ -37,6 +37,8 @@ The extension in `extension/` reads every playlist on a YouTube page and imports
 3. Click the Study Buddy icon. Use **Find more** to scroll the page so YouTube loads everything, tick what you want, choose a group (or type a new one) and click **Import**. You can close the popup while it runs.
 
 Playlists already in Study Buddy are marked and skipped. Private playlists can't be imported, because the server reads YouTube without your login. The server only accepts the extension with the fixed ID from the `key` in `extension/manifest.json`, so keep that key if you edit the manifest.
+
+**Watching on youtube.com counts too.** With the extension installed, playing a video on youtube.com that's in one of your Study Buddy playlists records the seconds you actually play, the same way the built-in player does (seeks and ads don't count). The extension icon shows ● while it's counting a video and ✓ once it's done. Videos you haven't imported are ignored. If Study Buddy isn't running, nothing is recorded. After updating the extension, reload it on `chrome://extensions`.
 
 Needs Node 22.13 or newer. It uses Node's built-in SQLite, so there are no native modules to build. No YouTube API key is needed.
 
@@ -77,4 +79,4 @@ src/         React UI: pages/, components/, lib/
 3. AI-drafted cards from transcripts (free model: Gemini free tier or Ollama), approved in a "Pending review" inbox
 4. Daily planner with a time budget per group, and carry-over of unfinished items
 5. Articles (LeetCode problem sheets are done)
-6. Chrome extension: done for bulk playlist import (see above); tracking while you watch on youtube.com is still to do
+6. Chrome extension: done (bulk import and tracking on youtube.com)

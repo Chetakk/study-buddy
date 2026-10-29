@@ -55,7 +55,25 @@ async function run({ items, groupId, newGroupName }) {
   await save(job);
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+// Playback reported by track.js on youtube.com. A ✓ badge on the tab shows the video counts in Study Buddy.
+async function track(body, tabId) {
+  try {
+    const r = await request('POST', '/track', body);
+    if (tabId !== undefined) {
+      chrome.action.setBadgeBackgroundColor({ tabId, color: '#0e7490' });
+      chrome.action.setBadgeText({ tabId, text: r.tracked ? (r.status === 'done' ? '✓' : '●') : '' });
+      chrome.action.setTitle({
+        tabId,
+        title: r.tracked ? `Study Buddy: counting "${r.title}" (${r.status === 'done' ? 'done' : `${Math.round(r.watchedS / 60)} min watched`})` : 'Import playlists into Study Buddy',
+      });
+    }
+  } catch {
+    // Study Buddy isn't running; the next report will try again with new ranges only.
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg.type === 'track') return void track(msg.body, sender.tab?.id);
   // The popup asks this to tell a live import from one cut off when the worker was stopped.
   if (msg.type === 'status') return reply({ running });
   if (msg.type !== 'import') return;
