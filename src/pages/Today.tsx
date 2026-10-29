@@ -6,6 +6,7 @@ import type { Today } from '../types.ts';
 import { FlashcardsCard, ResumeCard, TodayCard } from './today/TopRow.tsx';
 import { Groups } from './today/Groups.tsx';
 import { FirstRun } from './today/FirstRun.tsx';
+import { SuggestionLine } from './today/Suggestion.tsx';
 
 function greeting() {
   const h = new Date().getHours();
@@ -28,6 +29,7 @@ export function TodayPage() {
       <div className="hello">
         <h1>{greeting()}</h1>
         <p>{date}</p>
+        {data && data.allGroups.length > 0 && <SuggestionLine skip={data.resume ? [`finish-${data.resume.id}`] : []} />}
       </div>
 
       {!data ? (

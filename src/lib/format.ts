@@ -45,3 +45,9 @@ export function timeLeft(leftS: number, paceS: number): string {
   const eta = !days ? '' : days === 1 ? ' · about a day at your pace' : days > 365 ? ' · over a year at your pace' : ` · about ${days} days at your pace`;
   return `${fmtDuration(leftS)} left${eta}`;
 }
+
+// "2026-10-29" in local time, matching the server's day keys.
+export function localDay(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

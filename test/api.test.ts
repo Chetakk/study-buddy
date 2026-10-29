@@ -167,3 +167,17 @@ test('daily goal is saved and today shows time per group', async () => {
   await call('PATCH', `/groups/${g.id}`, { goalMin: -5 });
   assert.equal((await call('GET', '/groups')).data[0].goalMin, 0);
 });
+
+test('suggestions include a nearly finished video', async () => {
+  const g = (await call('GET', '/groups')).data[0];
+  const src = (await call('POST', '/sources/from-page', {
+    groupId: g.id,
+    playlistId: 'PLsuggest',
+    title: 'Suggest list',
+    videos: [{ videoId: 'ccccccccccc', title: 'Almost', durationS: 600 }],
+  })).data;
+  const item = (await call('GET', `/sources/${src.id}`)).data.items[0];
+  await call('POST', `/items/${item.id}/progress`, { segments: [[0, 400]], positionS: 400, playedS: 10 });
+  const s = (await call('GET', '/suggestions')).data;
+  assert.ok(s.some((x: any) => x.id === `finish-${item.id}` && x.text.includes('about 3 min left')), JSON.stringify(s));
+});

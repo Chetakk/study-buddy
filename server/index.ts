@@ -311,6 +311,87 @@ route('GET', '/api/today', () => {
   };
 });
 
+// Rule-based nudges, most useful first. Today shows only the top one.
+function suggestions() {
+  const out: { id: string; text: string; href: string; action: string }[] = [];
+  const hour = new Date().getHours();
+  const groups = listGroups().filter((g) => g.onToday && g.total > 0 && g.done < g.total);
+
+  const days = studyDays();
+  const today = localDay();
+  const run = streak(new Set(days));
+  if (run >= 2 && !days.includes(today) && hour >= 17) {
+    out.push({ id: 'streak', text: `Keep your ${run}-day streak going: even ten minutes counts.`, href: '#/', action: '' });
+  }
+
+  // Videos that are nearly finished.
+  const nearly = db
+    .prepare(
+      `SELECT i.id, i.title, i.duration_s AS d, p.watched_s AS w FROM progress p JOIN items i ON i.id = p.item_id
+       WHERE i.kind = 'video' AND i.skipped = 0 AND p.status = 'in_progress' AND i.duration_s > 0 AND p.watched_s >= i.duration_s * 0.6
+       ORDER BY p.updated_at DESC LIMIT 2`,
+    )
+    .all() as any[];
+  // Two, because Today hides the one its resume card already shows.
+  for (const v of nearly) {
+    const left = Math.max(1, Math.round((v.d - v.w) / 60));
+    out.push({ id: `finish-${v.id}`, text: `Finish "${v.title}": about ${left} min left.`, href: `#/watch/${v.id}`, action: 'Resume' });
+  }
+
+  // A daily goal not met yet, in the evening.
+  if (hour >= 18) {
+    for (const g of groups.filter((x) => x.goalMin > 0)) {
+      const s = (
+        db
+          .prepare(
+            `SELECT COALESCE(SUM(a.seconds), 0) AS s FROM activity a JOIN items i ON i.id = a.item_id
+             JOIN sources s ON s.id = i.source_id WHERE s.group_id = ? AND a.day = ?`,
+          )
+          .get(g.id, today) as any
+      ).s;
+      const left = g.goalMin - Math.floor(s / 60);
+      if (left > 0) out.push({ id: `goal-${g.id}`, text: `${left} min to go for your ${g.name} goal today.`, href: `#/group/${g.id}`, action: 'Open' });
+    }
+  }
+
+  // A pile of due cards.
+  const due = cardSummary().due;
+  if (due >= 10) out.push({ id: 'cards', text: `${due} flashcards are waiting. A short review keeps them from piling up.`, href: '#/review', action: 'Review' });
+
+  // The next pattern, once the one before it is finished.
+  const patterns = db
+    .prepare(
+      `SELECT s.id, s.title, s.group_id AS groupId, COUNT(i.id) AS total, COALESCE(SUM(p.status = 'done'), 0) AS done
+       FROM sources s JOIN items i ON i.source_id = s.id AND i.skipped = 0 LEFT JOIN progress p ON p.item_id = i.id
+       WHERE s.kind = 'problem_set' GROUP BY s.id ORDER BY s.group_id, s.position, s.id`,
+    )
+    .all() as any[];
+  for (let i = 1; i < patterns.length; i++) {
+    const [prev, cur] = [patterns[i - 1], patterns[i]];
+    if (prev.groupId === cur.groupId && prev.done === prev.total && cur.done === 0) {
+      out.push({ id: `pattern-${cur.id}`, text: `You finished ${prev.title}. Next pattern: ${cur.title}.`, href: `#/source/${cur.id}`, action: 'Start' });
+      break;
+    }
+  }
+
+  // A group on Today that hasn't been touched for a while.
+  const lastDay = db.prepare(
+    `SELECT MAX(a.day) AS d FROM activity a JOIN items i ON i.id = a.item_id JOIN sources s ON s.id = i.source_id WHERE s.group_id = ?`,
+  );
+  for (const g of groups) {
+    const d = (lastDay.get(g.id) as any).d as string | null;
+    if (!d) continue;
+    const gap = Math.round((Date.parse(`${today}T12:00:00`) - Date.parse(`${d}T12:00:00`)) / 864e5);
+    if (gap >= 4) {
+      out.push({ id: `stale-${g.id}-${d}`, text: `You haven't studied ${g.name} for ${gap} days.`, href: `#/group/${g.id}`, action: 'Open' });
+      break;
+    }
+  }
+  return out;
+}
+
+route('GET', '/api/suggestions', () => suggestions());
+
 route('GET', '/api/sidebar', () => ({
   groups: listGroups().map(({ id, name, color, done, total }) => ({ id, name, color, done, total })),
   streak: streak(),

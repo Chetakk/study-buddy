@@ -695,3 +695,10 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 .goal.met small { color: var(--text-main); font-weight: 650; }
 .mi-goal { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mi-goal .select { width: auto; padding: 4px 8px; font-size: 13px; }
+
+/* ---------- suggestion line ---------- */
+.suggestion { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
+.suggestion-go { font-weight: 700; color: var(--text-main); text-decoration: none; }
+.suggestion-go:hover { text-decoration: underline; }
+.suggestion-x { width: 22px; height: 22px; border-radius: 6px; color: var(--text-subtle); font-size: 16px; line-height: 1; opacity: .6; }
+.suggestion-x:hover, .suggestion-x:focus-visible { opacity: 1; background: var(--glass-bg-subtle); }
