@@ -118,6 +118,7 @@ export interface ListItem {
   position: number;
   watchedS: number;
   status: Status;
+  skipped: boolean;
 }
 
 export interface SourceDetail extends SourceStats {

@@ -29,7 +29,7 @@ class HttpError extends Error {
 
 // ---------- queries ----------
 
-// Done items count in full; others count the unique seconds actually played.
+// Done items count in full; others count the unique seconds actually played. Skipped items don't count.
 const SOURCE_STATS = `
   SELECT s.id, s.group_id AS groupId, s.kind, s.title, s.channel, s.url, s.position,
          COUNT(i.id) AS total,
@@ -38,7 +38,7 @@ const SOURCE_STATS = `
          COALESCE(SUM(CASE WHEN p.status = 'done' THEN i.duration_s
                            ELSE MIN(COALESCE(p.watched_s, 0), i.duration_s) END), 0) AS watchedS
   FROM sources s
-  LEFT JOIN items i ON i.source_id = s.id
+  LEFT JOIN items i ON i.source_id = s.id AND i.skipped = 0
   LEFT JOIN progress p ON p.item_id = i.id
   GROUP BY s.id
   ORDER BY s.position, s.id`;
@@ -74,7 +74,7 @@ function upNext(sourceIds: number[], limit: number) {
               i.kind, i.url, i.meta
        FROM items i JOIN sources s ON s.id = i.source_id
        LEFT JOIN progress p ON p.item_id = i.id
-       WHERE i.source_id IN (${marks}) AND COALESCE(p.status, 'not_started') != 'done'
+       WHERE i.source_id IN (${marks}) AND i.skipped = 0 AND COALESCE(p.status, 'not_started') != 'done'
        ORDER BY (COALESCE(p.status, 'not_started') = 'in_progress') DESC, p.updated_at DESC,
                 s.position, i.position
        LIMIT ?`,
@@ -152,10 +152,10 @@ function resume(groupIds: number[]) {
               s.title AS sourceTitle, g.id AS groupId, g.name AS groupName, g.color AS groupColor,
               COALESCE(p.segments, '[]') AS segments, COALESCE(p.watched_s, 0) AS watchedS,
               COALESCE(p.position_s, 0) AS positionS, COALESCE(p.status, 'not_started') AS status,
-              (SELECT COUNT(*) FROM items WHERE source_id = i.source_id) AS sourceTotal
+              (SELECT COUNT(*) FROM items WHERE source_id = i.source_id AND skipped = 0) AS sourceTotal
        FROM items i JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
        LEFT JOIN progress p ON p.item_id = i.id
-       WHERE i.kind = 'video' AND COALESCE(p.status, 'not_started') != 'done' ${only}
+       WHERE i.kind = 'video' AND i.skipped = 0 AND COALESCE(p.status, 'not_started') != 'done' ${only}
        ORDER BY (p.status = 'in_progress') DESC, p.updated_at DESC, g.position, s.position, i.position
        LIMIT 1`,
     )
@@ -165,7 +165,7 @@ function resume(groupIds: number[]) {
     .prepare(
       `SELECT i.id, i.title, i.duration_s AS durationS, i.thumbnail
        FROM items i LEFT JOIN progress p ON p.item_id = i.id
-       WHERE i.source_id = ? AND i.position > ? AND COALESCE(p.status, 'not_started') != 'done'
+       WHERE i.source_id = ? AND i.position > ? AND i.skipped = 0 AND COALESCE(p.status, 'not_started') != 'done'
        ORDER BY i.position LIMIT 1`,
     )
     .get(r.sourceId, r.position);
@@ -207,13 +207,13 @@ function progressFor(itemId: number) {
 function sourceItems(sourceId: number) {
   return db
     .prepare(
-      `SELECT i.id, i.kind, i.title, i.url, i.meta, i.duration_s AS durationS, i.thumbnail, i.position,
+      `SELECT i.id, i.kind, i.title, i.url, i.meta, i.duration_s AS durationS, i.thumbnail, i.position, i.skipped,
               COALESCE(p.watched_s, 0) AS watchedS, COALESCE(p.status, 'not_started') AS status
        FROM items i LEFT JOIN progress p ON p.item_id = i.id
        WHERE i.source_id = ? ORDER BY i.position`,
     )
     .all(sourceId)
-    .map(withMeta);
+    .map((r: any) => ({ ...withMeta(r), skipped: Boolean(r.skipped) }));
 }
 
 // Seconds a day spent on a group over the last two weeks, counting days off, or 0 if it wasn't studied.
@@ -624,6 +624,11 @@ route('POST', '/api/items/:id/status', ([id], b) => {
        completed_at = excluded.completed_at, updated_at = datetime('now')`,
   ).run(itemId, status, done ? new Date().toISOString() : null);
   return progressFor(itemId);
+});
+
+route('POST', '/api/items/:id/skip', ([id], b) => {
+  db.prepare('UPDATE items SET skipped = ? WHERE id = ?').run(b.skipped ? 1 : 0, Number(id));
+  return { ok: true };
 });
 
 route('POST', '/api/items/:id/notes', ([id], b) => {

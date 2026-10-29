@@ -4,14 +4,15 @@ import { useLoad } from '../lib/useLoad.ts';
 import { fmtDuration, pct, ratio, timeLeft } from '../lib/format.ts';
 import { notifyChanged } from '../lib/events.ts';
 import { Bar, DoneToggle, ErrorBox, GroupDot, Loading, Thumb } from '../components/ui.tsx';
-import { External, Play } from '../components/icons.tsx';
+import { External, Eye, Play } from '../components/icons.tsx';
 import type { ListItem, Progress, SourceDetail, Status } from '../types.ts';
 
-const FILTERS: [string, string, (s: Status) => boolean][] = [
+const FILTERS: [string, string, (i: ListItem) => boolean][] = [
   ['all', 'All', () => true],
-  ['left', 'Left', (s) => s !== 'done'],
-  ['started', 'In progress', (s) => s === 'in_progress'],
-  ['done', 'Done', (s) => s === 'done'],
+  ['left', 'Left', (i) => i.status !== 'done' && !i.skipped],
+  ['started', 'In progress', (i) => i.status === 'in_progress' && !i.skipped],
+  ['done', 'Done', (i) => i.status === 'done'],
+  ['skipped', 'Skipped', (i) => i.skipped],
 ];
 
 export function SourcePage({ id }: { id: number }) {
@@ -27,12 +28,20 @@ export function SourcePage({ id }: { id: number }) {
     notifyChanged();
   };
 
+  const skip = async (itemId: number, skipped: boolean) => {
+    await api.post(`/items/${itemId}/skip`, { skipped });
+    reload();
+    notifyChanged();
+  };
+
   const problems = src.kind === 'problem_set';
-  const filters = problems ? FILTERS.filter((f) => f[0] !== 'started') : FILTERS;
+  const anySkipped = src.items.some((i) => i.skipped);
+  const filters = FILTERS.filter((f) => !(problems && f[0] === 'started') && (f[0] !== 'skipped' || anySkipped));
   const label = (key: string, text: string) => (problems ? ({ left: 'To solve', done: 'Solved' } as Record<string, string>)[key] ?? text : text);
   const test = filters.find((f) => f[0] === filter)?.[2] ?? (() => true);
-  const items = src.items.filter((i) => test(i.status));
-  const next = src.items.find((i) => i.status === 'in_progress') ?? src.items.find((i) => i.status !== 'done');
+  const items = src.items.filter(test);
+  const live = src.items.filter((i) => !i.skipped);
+  const next = live.find((i) => i.status === 'in_progress') ?? live.find((i) => i.status !== 'done');
 
   return (
     <div className="stack">
@@ -90,7 +99,7 @@ export function SourcePage({ id }: { id: number }) {
           <div className="tabs" role="tablist">
             {filters.map(([key, text, t]) => (
               <button key={key} role="tab" aria-selected={filter === key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>
-                {label(key, text)} <span className="mono subtle">{src.items.filter((i) => t(i.status)).length}</span>
+                {label(key, text)} <span className="mono subtle">{src.items.filter(t).length}</span>
               </button>
             ))}
           </div>
@@ -99,17 +108,31 @@ export function SourcePage({ id }: { id: number }) {
           {items.length === 0 && <p className="empty">Nothing here.</p>}
           {problems && <ProblemRows items={items} color={src.group.color} onToggle={toggle} />}
           {!problems && items.map((i) => (
-            <a key={i.id} href={`#/watch/${i.id}`} className="list-row">
+            <a key={i.id} href={`#/watch/${i.id}`} className={`list-row${i.skipped ? ' skipped' : ''}`}>
               <span className="idx">{i.position + 1}</span>
               <Thumb src={i.thumbnail} durationS={i.durationS} watched={ratio(i.watchedS, i.durationS)} color={src.group.color} />
               <div className="video-meta">
                 <div className="video-title">{i.title}</div>
                 <div className="video-sub">
                   {fmtDuration(i.durationS)}
-                  {i.status === 'in_progress' && ` · ${pct(i.watchedS, i.durationS)} watched`}
+                  {i.skipped ? ' · Skipped, not counted' : i.status === 'in_progress' && ` · ${pct(i.watchedS, i.durationS)} watched`}
                 </div>
               </div>
-              <DoneToggle status={i.status} color={src.group.color} title={i.title} onToggle={() => toggle(i.id, i.status)} />
+              <span className="row-actions">
+                <button
+                  className="icon-btn skip-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    skip(i.id, !i.skipped);
+                  }}
+                  title={i.skipped ? 'Count this video again' : "Skip: don't count this video"}
+                  aria-label={i.skipped ? `Count "${i.title}" again` : `Skip "${i.title}"`}
+                  aria-pressed={i.skipped}
+                >
+                  <Eye off={!i.skipped} />
+                </button>
+                {!i.skipped && <DoneToggle status={i.status} color={src.group.color} title={i.title} onToggle={() => toggle(i.id, i.status)} />}
+              </span>
             </a>
           ))}
         </div>

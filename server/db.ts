@@ -79,6 +79,8 @@ db.exec(`
 const itemCols = (db.prepare('PRAGMA table_info(items)').all() as any[]).map((c) => c.name);
 if (!itemCols.includes('url')) db.exec("ALTER TABLE items ADD COLUMN url TEXT NOT NULL DEFAULT ''");
 if (!itemCols.includes('meta')) db.exec("ALTER TABLE items ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'");
+// Skipped items (intros, repeated uploads) stay listed but don't count toward progress or come up next.
+if (!itemCols.includes('skipped')) db.exec('ALTER TABLE items ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0');
 
 // Groups chosen for the Today page. Existing groups start on it, so nothing disappears.
 const groupCols = (db.prepare('PRAGMA table_info(groups)').all() as any[]).map((c) => c.name);

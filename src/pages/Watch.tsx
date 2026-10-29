@@ -76,8 +76,9 @@ function Watch({
   const [speed, setSpeed] = useState(() => savedSpeed(item.sourceId));
 
   const idx = item.playlist.findIndex((p) => p.id === item.id);
-  const prev = item.playlist[idx - 1];
-  const next = item.playlist[idx + 1];
+  // Previous / next (and auto-play) pass over skipped videos.
+  const prev = item.playlist.slice(0, Math.max(idx, 0)).reverse().find((p) => !p.skipped);
+  const next = item.playlist.slice(idx + 1).find((p) => !p.skipped);
   const duration = item.durationS;
   const segments = mergeSegments([...progress.segments, ...live]);
   const watched = progress.status === 'done' ? duration : coveredSeconds(segments, duration);
@@ -410,14 +411,14 @@ function Watch({
           <a className="side-pl" href={`#/source/${item.sourceId}`} title="Open the playlist page">
             <span className="side-pl-title">{item.sourceTitle}</span>
             <span className="subtle mono">
-              {playlist.filter((p) => p.status === 'done').length}/{playlist.length} done ›
+              {playlist.filter((p) => p.status === 'done' && !p.skipped).length}/{playlist.filter((p) => !p.skipped).length} done ›
             </span>
           </a>
         )}
         {tab === 'playlist' ? (
           <div className="side-body">
             {playlist.map((p) => (
-              <a key={p.id} href={`#/watch/${p.id}`} className={`pl-item${p.id === item.id ? ' current' : ''}`}>
+              <a key={p.id} href={`#/watch/${p.id}`} className={`pl-item${p.id === item.id ? ' current' : ''}${p.skipped ? ' skipped' : ''}`}>
                 <span className="idx">{p.status === 'done' ? <span className="done-tick">✓</span> : p.position + 1}</span>
                 <Thumb src={p.thumbnail} durationS={p.durationS} watched={ratio(p.watchedS, p.durationS)} color={item.groupColor} />
                 <span className="video-title">{p.title}</span>

@@ -642,3 +642,11 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 .notes-video-h { display: flex; gap: 10px; align-items: baseline; text-decoration: none; color: inherit; padding: 2px 8px; }
 .notes-video-h .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; transform: translateY(-1px); }
 .notes-video-h:hover strong { text-decoration: underline; }
+
+/* ---------- skipped items ---------- */
+.row-actions { display: flex; align-items: center; gap: 6px; }
+.skip-btn { opacity: 0; }
+.list-row:hover .skip-btn, .skip-btn:focus-visible, .list-row.skipped .skip-btn { opacity: 1; }
+.list-row.skipped .video-meta, .list-row.skipped .thumb, .pl-item.skipped { opacity: 0.45; }
+.list-row.skipped .video-title { text-decoration: line-through; }
+@media (hover: none) { .skip-btn { opacity: 1; } }

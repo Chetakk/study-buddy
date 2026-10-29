@@ -109,3 +109,17 @@ test('notes are listed, searched and found by the palette', async () => {
   const hit = (await call('GET', '/search?q=chain')).data.find((h: any) => h.kind === 'Note');
   assert.equal(hit.href, `#/watch/${id}?t=42`);
 });
+
+test('skipped videos stop counting and are passed over', async () => {
+  const g = (await call('GET', '/groups')).data[0];
+  const src = (await call('GET', `/sources/${g.sources[0].id}`)).data;
+  const two = src.items.find((i: any) => i.title === 'Two');
+  await call('POST', `/items/${two.id}/skip`, { skipped: true });
+  const after = (await call('GET', `/sources/${src.id}`)).data;
+  assert.equal(after.total, 1);
+  assert.equal(after.durationS, 100);
+  assert.equal(after.items.find((i: any) => i.id === two.id).skipped, true);
+  assert.notEqual((await call('GET', '/today')).data.resume?.id, two.id);
+  await call('POST', `/items/${two.id}/skip`, { skipped: false });
+  assert.equal((await call('GET', `/sources/${src.id}`)).data.total, 2);
+});
