@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { api } from '../lib/api.ts';
 import { useLoad } from '../lib/useLoad.ts';
 import { notifyChanged } from '../lib/events.ts';
-import { colorVar, fmtClock, fmtDuration, pct, ratio } from '../lib/format.ts';
+import { colorVar, fmtClock, fmtDuration, pct, ratio, timeLeft } from '../lib/format.ts';
 import { Bar, ErrorBox, Loading, Ring, Thumb } from '../components/ui.tsx';
 import { Check, External, Play, Plus, Search } from '../components/icons.tsx';
 import { ProblemRows } from './Source.tsx';
@@ -84,6 +84,8 @@ function summary(g: GroupDetail, hasVideos: boolean, hasProblems: boolean) {
   if (hasProblems && !hasVideos) return `${g.done} of ${n(g.total, 'problem')} solved`;
   const parts = [`${g.done} of ${n(g.total, hasProblems ? 'item' : 'video')} done`];
   if (g.durationS) parts.push(g.watchedS >= 60 ? `${fmtDuration(g.watchedS)} of ${fmtDuration(g.durationS)} watched` : `${fmtDuration(g.durationS)} of video`);
+  const left = timeLeft(g.durationS - g.watchedS, g.paceS);
+  if (left && g.watchedS >= 60) parts.push(left);
   return parts.join(' · ');
 }
 

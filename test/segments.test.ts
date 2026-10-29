@@ -36,3 +36,10 @@ test('isDone needs 90% of a known length', () => {
   assert.equal(isDone(89, 100), false);
   assert.equal(isDone(500, 0), false);
 });
+
+test('timeLeft estimates days at the recent pace', async () => {
+  const { timeLeft } = await import('../src/lib/format.ts');
+  assert.equal(timeLeft(30, 600), '');
+  assert.equal(timeLeft(7200, 0), '2h 00m left');
+  assert.equal(timeLeft(7200, 1800), '2h 00m left · about 4 days at your pace');
+});

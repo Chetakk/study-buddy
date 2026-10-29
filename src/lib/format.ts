@@ -37,3 +37,11 @@ export const ratio = (part: number, whole: number) => (whole > 0 ? Math.min(part
 export const pct = (part: number, whole: number) => `${Math.round(ratio(part, whole) * 100)}%`;
 
 export { mergeSegments, coveredSeconds } from '../../shared/segments.ts';
+
+// "6h 20m left · about 9 days at your pace", or just the time left when there's no recent pace.
+export function timeLeft(leftS: number, paceS: number): string {
+  if (leftS < 60) return '';
+  const days = paceS >= 60 ? Math.ceil(leftS / paceS) : 0;
+  const eta = !days ? '' : days === 1 ? ' · about a day at your pace' : days > 365 ? ' · over a year at your pace' : ` · about ${days} days at your pace`;
+  return `${fmtDuration(leftS)} left${eta}`;
+}

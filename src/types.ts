@@ -81,6 +81,7 @@ export interface GroupSource extends SourceStats {
 export interface GroupDetail extends Omit<Group, 'sources'> {
   sources: GroupSource[];
   upNext: QueueItem[];
+  paceS: number;
 }
 
 export interface Today {
@@ -122,6 +123,7 @@ export interface ListItem {
 export interface SourceDetail extends SourceStats {
   group: { id: number; name: string; color: string };
   items: ListItem[];
+  paceS: number;
 }
 
 export interface Progress {

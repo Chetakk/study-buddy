@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api.ts';
 import { useLoad } from '../lib/useLoad.ts';
-import { fmtDuration, pct, ratio } from '../lib/format.ts';
+import { fmtDuration, pct, ratio, timeLeft } from '../lib/format.ts';
 import { notifyChanged } from '../lib/events.ts';
 import { Bar, DoneToggle, ErrorBox, GroupDot, Loading, Thumb } from '../components/ui.tsx';
 import { External, Play } from '../components/icons.tsx';
@@ -78,6 +78,11 @@ export function SourcePage({ id }: { id: number }) {
           </span>
         </div>
         <Bar value={ratio(src.done, src.total)} color={src.group.color} size="lg" label={problems ? 'Problems solved' : 'Playlist progress'} />
+        {!problems && src.done < src.total && timeLeft(src.durationS - src.watchedS, src.paceS) && (
+          <span className="subtle" style={{ fontSize: 13 }}>
+            {timeLeft(src.durationS - src.watchedS, src.paceS)}
+          </span>
+        )}
       </div>
 
       <div className="card">

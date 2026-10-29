@@ -216,6 +216,20 @@ function sourceItems(sourceId: number) {
     .map(withMeta);
 }
 
+// Seconds a day spent on a group over the last two weeks, counting days off, or 0 if it wasn't studied.
+const PACE_DAYS = 14;
+function paceS(groupId: number): number {
+  const since = new Date();
+  since.setDate(since.getDate() - (PACE_DAYS - 1));
+  const r = db
+    .prepare(
+      `SELECT COALESCE(SUM(a.seconds), 0) AS s FROM activity a JOIN items i ON i.id = a.item_id
+       JOIN sources s ON s.id = i.source_id WHERE s.group_id = ? AND a.day >= ?`,
+    )
+    .get(groupId, localDay(since)) as any;
+  return Math.round(r.s / PACE_DAYS);
+}
+
 function nextPosition(table: 'groups' | 'sources'): number {
   return ((db.prepare(`SELECT MAX(position) AS m FROM ${table}`).get() as any).m ?? -1) + 1;
 }
@@ -391,7 +405,7 @@ route('GET', '/api/groups/:id', ([id]) => {
     items: s.kind === 'problem_set' ? sourceItems(s.id) : undefined,
   }));
   const videoIds = sources.filter((s: any) => s.kind !== 'problem_set').map((s: any) => s.id);
-  return { ...g, sources, upNext: upNext(videoIds, 5) };
+  return { ...g, sources, upNext: upNext(videoIds, 5), paceS: paceS(g.id) };
 });
 
 function checkNewSource(groupId: number, playlistId: string) {
@@ -467,7 +481,7 @@ route('GET', '/api/sources/:id', ([id]) => {
   const source = (db.prepare(SOURCE_STATS.replace('GROUP BY', 'WHERE s.id = ? GROUP BY')).get(Number(id)) as any) ?? null;
   if (!source) throw new HttpError(404, 'Source not found');
   const group = db.prepare('SELECT id, name, color FROM groups WHERE id = ?').get(source.groupId);
-  return { ...source, group, items: sourceItems(Number(id)) };
+  return { ...source, group, items: sourceItems(Number(id)), paceS: paceS(source.groupId) };
 });
 
 route('PATCH', '/api/sources/:id', ([id], b) => {
