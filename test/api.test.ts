@@ -157,3 +157,13 @@ test('cards: create, queue, review and piles', async () => {
   assert.equal((await call('GET', '/cards?pile=learning')).data.length, 1);
   assert.equal((await call('GET', '/cards?q=gradient')).data.length, 1);
 });
+
+test('daily goal is saved and today shows time per group', async () => {
+  const g = (await call('GET', '/groups')).data[0];
+  await call('PATCH', `/groups/${g.id}`, { goalMin: 30 });
+  const t = (await call('GET', '/today')).data.groups.find((x: any) => x.id === g.id);
+  assert.equal(t.goalMin, 30);
+  assert.ok(t.todayS > 0);
+  await call('PATCH', `/groups/${g.id}`, { goalMin: -5 });
+  assert.equal((await call('GET', '/groups')).data[0].goalMin, 0);
+});

@@ -121,6 +121,8 @@ if (!progressCols.includes('rewatched_at')) db.exec('ALTER TABLE progress ADD CO
 // Groups chosen for the Today page. Existing groups start on it, so nothing disappears.
 const groupCols = (db.prepare('PRAGMA table_info(groups)').all() as any[]).map((c) => c.name);
 if (!groupCols.includes('on_today')) db.exec('ALTER TABLE groups ADD COLUMN on_today INTEGER NOT NULL DEFAULT 1');
+// Minutes a day you mean to spend on a group; 0 means no goal.
+if (!groupCols.includes('goal_min')) db.exec('ALTER TABLE groups ADD COLUMN goal_min INTEGER NOT NULL DEFAULT 0');
 
 // Every table, parents before children; used by export and import.
 export const TABLES = ['groups', 'sources', 'items', 'progress', 'notes', 'activity', 'cards', 'reviews'];

@@ -102,6 +102,10 @@ export function Groups({
               setGroups(groups.filter((x) => x.id !== g.id));
               patch(g.id, { onToday: false });
             }}
+            onGoal={(goalMin) => {
+              setGroups(groups.map((x) => (x.id === g.id ? { ...x, goalMin } : x)));
+              patch(g.id, { goalMin });
+            }}
           />
         ))}
         <NewGroupTile used={groups.map((g) => g.color)} onCreated={onChange} />
@@ -127,6 +131,7 @@ function GroupTile({
   onDragEnd,
   onSolved,
   onHide,
+  onGoal,
 }: {
   g: TodayGroup;
   dragging: boolean;
@@ -144,6 +149,7 @@ function GroupTile({
   onDragEnd: () => void;
   onSolved: (itemId: number) => void;
   onHide: () => void;
+  onGoal: (goalMin: number) => void;
 }) {
   const [draggable, setDraggable] = useState(false);
   const finished = g.total > 0 && g.done === g.total;
@@ -200,6 +206,8 @@ function GroupTile({
             onMove={onMove}
             onHide={onHide}
             onDelete={onDelete}
+            goalMin={g.goalMin}
+            onGoal={onGoal}
           />
         )}
       </div>
@@ -214,12 +222,13 @@ function GroupTile({
           )}
           <p>
             {g.done} of {g.total} {unitOf(g.sources.map((s) => s.kind), g.total)}
-            {g.studiedToday && !finished && (
+            {g.studiedToday && !finished && !g.goalMin && (
               <span className="today-tick">
                 <Check /> Studied today
               </span>
             )}
           </p>
+          {g.goalMin > 0 && !finished && <GoalLine todayS={g.todayS} goalMin={g.goalMin} />}
         </div>
       </a>
 
@@ -276,6 +285,22 @@ function GroupTile({
   );
 }
 
+// Today's minutes against the group's daily goal. Overall completion stays on the ring.
+function GoalLine({ todayS, goalMin }: { todayS: number; goalMin: number }) {
+  const mins = Math.floor(todayS / 60);
+  const met = mins >= goalMin;
+  return (
+    <div className={`goal${met ? ' met' : ''}`} title="Today's study time against your daily goal">
+      <span className="goal-bar">
+        <span style={{ width: `${Math.min(1, mins / goalMin) * 100}%` }} />
+      </span>
+      <small>{met ? <><Check /> Goal met · {mins} min</> : `${mins} of ${goalMin} min today`}</small>
+    </div>
+  );
+}
+
+const GOALS = [0, 15, 30, 45, 60, 90, 120];
+
 function RenameInput({ name, onDone }: { name: string; onDone: (name: string) => void }) {
   const [value, setValue] = useState(name);
   const done = useRef(false);
@@ -311,7 +336,11 @@ function TileMenu({
   onMove,
   onHide,
   onDelete,
+  goalMin,
+  onGoal,
 }: {
+  goalMin: number;
+  onGoal: (goalMin: number) => void;
   color: string;
   name: string;
   canMove: [boolean, boolean];
@@ -361,6 +390,16 @@ function TileMenu({
               />
             ))}
           </div>
+          <label className="mi mi-goal">
+            Daily goal
+            <select className="select" value={GOALS.includes(goalMin) ? goalMin : 0} onChange={(e) => onGoal(Number(e.target.value))} aria-label="Daily goal">
+              {GOALS.map((m) => (
+                <option key={m} value={m}>
+                  {m ? `${m} min` : 'None'}
+                </option>
+              ))}
+            </select>
+          </label>
           {(canMove[0] || canMove[1]) && <hr />}
           {canMove[0] && (
             <button className="mi" role="menuitem" onClick={() => onMove(-1)}>

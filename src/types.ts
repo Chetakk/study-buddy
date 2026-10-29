@@ -29,6 +29,7 @@ export interface Group {
   name: string;
   color: string;
   onToday: boolean;
+  goalMin: number;
   total: number;
   done: number;
   durationS: number;
@@ -70,7 +71,7 @@ export interface ResumeItem {
   next: { id: number; title: string; durationS: number; thumbnail: string } | null;
 }
 
-export type TodayGroup = Group & { upNext: QueueItem[]; studiedToday: boolean; finishedAt: string | null };
+export type TodayGroup = Group & { upNext: QueueItem[]; studiedToday: boolean; todayS: number; finishedAt: string | null };
 
 export interface GroupSource extends SourceStats {
   next: QueueItem | null;

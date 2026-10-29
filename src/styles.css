@@ -685,3 +685,13 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 .note-tools { display: flex; gap: 2px; }
 .note:hover .note-tools .icon-btn, .note-tools .icon-btn:focus-visible { opacity: 1; }
 .side .card-form { padding: 12px; box-shadow: none; }
+
+/* ---------- daily goal ---------- */
+.goal { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.goal-bar { flex: 1; max-width: 120px; height: 4px; border-radius: 99px; background: var(--glass-bg-subtle); border: 1px solid var(--glass-border); overflow: hidden; }
+.goal-bar span { display: block; height: 100%; background: var(--c); }
+.goal small { font-size: 12px; color: var(--text-subtle); display: inline-flex; align-items: center; gap: 4px; }
+.goal small svg { width: 12px; height: 12px; }
+.goal.met small { color: var(--text-main); font-weight: 650; }
+.mi-goal { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mi-goal .select { width: auto; padding: 4px 8px; font-size: 13px; }

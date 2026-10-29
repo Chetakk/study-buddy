@@ -40,7 +40,7 @@ const SOURCE_STATS = `
 
 function listGroups() {
   const groups = (
-    db.prepare('SELECT id, name, color, position, on_today AS onToday FROM groups ORDER BY position, id').all() as any[]
+    db.prepare('SELECT id, name, color, position, on_today AS onToday, goal_min AS goalMin FROM groups ORDER BY position, id').all() as any[]
   ).map((g) => ({ ...g, onToday: Boolean(g.onToday) }));
   const sources = db.prepare(SOURCE_STATS).all() as any[];
   return groups.map((g) => {
@@ -263,6 +263,16 @@ route('GET', '/api/today', () => {
     ).map((r) => [r.groupId, r.at]),
   );
   const touched = studiedTodayByGroup();
+  const todayS = new Map(
+    (
+      db
+        .prepare(
+          `SELECT s.group_id AS id, SUM(a.seconds) AS s FROM activity a JOIN items i ON i.id = a.item_id
+           JOIN sources s ON s.id = i.source_id WHERE a.day = ? GROUP BY s.group_id`,
+        )
+        .all(localDay()) as any[]
+    ).map((r) => [r.id, r.s as number]),
+  );
   const all = listGroups();
   // What to do first: your order, but groups already studied today move down and finished ones go last.
   const rank = (g: any) => (g.total > 0 && g.done === g.total ? 2 : touched.has(g.id) ? 1 : 0);
@@ -275,6 +285,7 @@ route('GET', '/api/today', () => {
         1,
       ),
       studiedToday: touched.has(g.id),
+      todayS: todayS.get(g.id) ?? 0,
       finishedAt: g.total > 0 && g.done === g.total ? (finished.get(g.id) ?? null) : null,
     }))
     .sort((a, b) => rank(a) - rank(b) || a.position - b.position);
@@ -370,6 +381,9 @@ route('PATCH', '/api/groups/:id', ([id], b) => {
   }
   if (b.color !== undefined) db.prepare('UPDATE groups SET color = ? WHERE id = ?').run(String(b.color), Number(id));
   if (b.onToday !== undefined) db.prepare('UPDATE groups SET on_today = ? WHERE id = ?').run(b.onToday ? 1 : 0, Number(id));
+  if (b.goalMin !== undefined) {
+    db.prepare('UPDATE groups SET goal_min = ? WHERE id = ?').run(Math.max(0, Math.min(600, Math.round(Number(b.goalMin) || 0))), Number(id));
+  }
   return { ok: true };
 });
 
