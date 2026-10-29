@@ -116,6 +116,7 @@ export function SourcePage({ id }: { id: number }) {
                 <div className="video-sub">
                   {fmtDuration(i.durationS)}
                   {i.skipped ? ' · Skipped, not counted' : i.status === 'in_progress' && ` · ${pct(i.watchedS, i.durationS)} watched`}
+                  {!i.skipped && i.rewatchedAt && ` · Rewatched ${shortDate(i.rewatchedAt)}`}
                 </div>
               </div>
               <span className="row-actions">
@@ -140,6 +141,9 @@ export function SourcePage({ id }: { id: number }) {
     </div>
   );
 }
+
+// SQLite's datetime('now') is UTC without a zone marker.
+const shortDate = (sqlUtc: string) => new Date(`${sqlUtc.replace(' ', 'T')}Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
 const DIFF: Record<string, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 

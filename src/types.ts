@@ -119,6 +119,7 @@ export interface ListItem {
   watchedS: number;
   status: Status;
   skipped: boolean;
+  rewatchedAt: string | null;
 }
 
 export interface SourceDetail extends SourceStats {
@@ -133,6 +134,7 @@ export interface Progress {
   positionS: number;
   status: Status;
   completedAt: string | null;
+  rewatchedAt: string | null;
 }
 
 export interface Note {

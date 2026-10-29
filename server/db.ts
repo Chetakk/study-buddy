@@ -82,6 +82,10 @@ if (!itemCols.includes('meta')) db.exec("ALTER TABLE items ADD COLUMN meta TEXT 
 // Skipped items (intros, repeated uploads) stay listed but don't count toward progress or come up next.
 if (!itemCols.includes('skipped')) db.exec('ALTER TABLE items ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0');
 
+// When a finished video was last played again (it stays done).
+const progressCols = (db.prepare('PRAGMA table_info(progress)').all() as any[]).map((c) => c.name);
+if (!progressCols.includes('rewatched_at')) db.exec('ALTER TABLE progress ADD COLUMN rewatched_at TEXT');
+
 // Groups chosen for the Today page. Existing groups start on it, so nothing disappears.
 const groupCols = (db.prepare('PRAGMA table_info(groups)').all() as any[]).map((c) => c.name);
 if (!groupCols.includes('on_today')) db.exec('ALTER TABLE groups ADD COLUMN on_today INTEGER NOT NULL DEFAULT 1');

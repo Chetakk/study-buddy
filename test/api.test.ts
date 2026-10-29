@@ -123,3 +123,13 @@ test('skipped videos stop counting and are passed over', async () => {
   await call('POST', `/items/${two.id}/skip`, { skipped: false });
   assert.equal((await call('GET', `/sources/${src.id}`)).data.total, 2);
 });
+
+test('replaying a long-finished video records a rewatch', async () => {
+  const g = (await call('GET', '/groups')).data[0];
+  const one = (await call('GET', `/sources/${g.sources[0].id}`)).data.items.find((i: any) => i.title === 'One');
+  await call('POST', `/items/${one.id}/status`, { done: true });
+  const r = await call('POST', `/items/${one.id}/progress`, { segments: [[0, 5]], positionS: 5, playedS: 5 });
+  // Finished moments ago: not a rewatch yet.
+  assert.equal(r.data.rewatchedAt, null);
+  assert.equal(r.data.status, 'done');
+});

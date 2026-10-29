@@ -201,6 +201,7 @@ function progressFor(itemId: number) {
     positionS: p?.position_s ?? 0,
     status: p?.status ?? 'not_started',
     completedAt: p?.completed_at ?? null,
+    rewatchedAt: p?.rewatched_at ?? null,
   };
 }
 
@@ -208,7 +209,8 @@ function sourceItems(sourceId: number) {
   return db
     .prepare(
       `SELECT i.id, i.kind, i.title, i.url, i.meta, i.duration_s AS durationS, i.thumbnail, i.position, i.skipped,
-              COALESCE(p.watched_s, 0) AS watchedS, COALESCE(p.status, 'not_started') AS status
+              COALESCE(p.watched_s, 0) AS watchedS, COALESCE(p.status, 'not_started') AS status,
+              p.rewatched_at AS rewatchedAt
        FROM items i LEFT JOIN progress p ON p.item_id = i.id
        WHERE i.source_id = ? ORDER BY i.position`,
     )
@@ -603,6 +605,10 @@ route('POST', '/api/items/:id/progress', ([id], b) => {
 
     // Wall-clock time spent playing; capped per call so a stuck tab can't inflate it.
     const played = Math.min(Math.max(Math.round(Number(b.playedS) || 0), 0), 120);
+    // Playing a video that was finished more than an hour ago counts as a rewatch.
+    if (played && prev.status === 'done' && prev.completedAt && Date.parse(prev.completedAt) < Date.now() - 3600e3) {
+      db.prepare("UPDATE progress SET rewatched_at = datetime('now') WHERE item_id = ?").run(itemId);
+    }
     if (played) {
       db.prepare(
         `INSERT INTO activity (day, item_id, seconds) VALUES (?, ?, ?)
