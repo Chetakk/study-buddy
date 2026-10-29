@@ -33,7 +33,7 @@ function saveSpeed(sourceId: number, rate: number) {
 }
 
 export function WatchPage({ id, focus, setFocus }: { id: number; focus: boolean; setFocus: (f: boolean) => void }) {
-  const { data: item, error } = useLoad(() => api.get<ItemDetail>(`/items/${id}`), id);
+  const { data: item, error } = useLoad(() => api.get<ItemDetail>(`/items/${id}`), id, false);
 
   if (error) return <ErrorBox message={error} />;
   if (!item) return <Loading />;
@@ -256,6 +256,41 @@ function Watch({
     noteRef.current!.value = '';
     noteAt.current = 0;
   };
+
+  // From JARVIS (src/lib/remote.ts): a note at the current time, or "mark it done".
+  useEffect(() => {
+    const onNote = async (e: Event) => {
+      const body = (e as CustomEvent<string>).detail;
+      const atS = playerRef.current?.getCurrentTime?.() ?? now;
+      const { id } = await api.post<{ id: number }>(`/items/${item.id}/notes`, { atS, body });
+      setNotes((n) => [...n, { id, atS, body, createdAt: new Date().toISOString() }].sort((a, b) => a.atS - b.atS));
+      showToast('Note added');
+    };
+    const onDone = () => {
+      if (progress.status !== 'done') toggleDone();
+    };
+    // {do: 'play' | 'pause'} or {do: 'seek', by: ±seconds} or {do: 'speed', to: 1.5}
+    const onPlayer = (e: Event) => {
+      const c = (e as CustomEvent<{ do: string; by?: number; to?: number }>).detail;
+      const p = playerRef.current;
+      if (!p?.getPlayerState) return;
+      if (c.do === 'play') p.playVideo();
+      else if (c.do === 'pause') p.pauseVideo();
+      else if (c.do === 'seek') seek(Math.max(0, Math.min(duration, (p.getCurrentTime?.() ?? now) + Number(c.by || 0))));
+      else if (c.do === 'speed' && SPEEDS.includes(Number(c.to))) {
+        p.setPlaybackRate(Number(c.to));
+        showToast(`Speed ${c.to}×`);
+      }
+    };
+    window.addEventListener('sb:note', onNote);
+    window.addEventListener('sb:done', onDone);
+    window.addEventListener('sb:player', onPlayer);
+    return () => {
+      window.removeEventListener('sb:note', onNote);
+      window.removeEventListener('sb:done', onDone);
+      window.removeEventListener('sb:player', onPlayer);
+    };
+  });
 
   const [aiReady, setAiReady] = useState(false);
   const [drafting, setDrafting] = useState<'closed' | 'open' | 'busy'>('closed');

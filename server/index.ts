@@ -18,6 +18,7 @@ import { cardPrompt, parseDrafts, provider, tidyTranscript } from './ai.ts';
 import { HttpError } from './http.ts';
 import { addProblemCard, createCard, getCard, listCards, queue, reviewCard, summary as cardSummary, updateCard } from './cards.ts';
 import { backupNow, exportAll, importAll, scheduleBackups } from './backup.ts';
+import { listen as remoteListen, openPages, send as remoteSend } from './remote.ts';
 
 const PORT = Number(process.env.PORT ?? 7314);
 const EXTENSION_ORIGIN = 'chrome-extension://akpgchnbfjjddggapkcmlbjpdfpconii';
@@ -884,6 +885,9 @@ route('POST', '/api/import', (_, b) => {
 
 route('POST', '/api/backup', () => ({ file: backupNow() }));
 
+route('GET', '/api/remote/pages', () => openPages());
+route('POST', '/api/remote', (_, b) => remoteSend(b));
+
 // ---------- server ----------
 
 const MIME: Record<string, string> = {
@@ -938,6 +942,7 @@ const server = http.createServer(async (req, res) => {
   if (origin && origin !== EXTENSION_ORIGIN && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
     return send(403, { error: 'Forbidden origin' });
   }
+  if (req.method === 'GET' && url.pathname === '/api/remote') return remoteListen(req, res, url);
 
   try {
     for (const [method, re, handler] of routes) {

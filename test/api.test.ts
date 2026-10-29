@@ -215,3 +215,21 @@ test('articles go into a reading list and count their reading time when read', a
     page.close();
   }
 });
+
+test('remote: open pages get what JARVIS sends, and say where they are', async () => {
+  const got: string[] = [];
+  const req = http.get(`http://127.0.0.1:${PORT}/api/remote?at=${encodeURIComponent('#/watch/3')}`);
+  const res = await new Promise<http.IncomingMessage>((r) => req.on('response', r));
+  res.setEncoding('utf8');
+  res.on('data', (d: string) => got.push(d));
+  try {
+    assert.deepEqual((await call('GET', '/remote/pages')).data.map((p: any) => p.at), ['#/watch/3']);
+    assert.equal((await call('POST', '/remote', { key: 'k' })).data.pages, 1);
+    assert.equal((await call('POST', '/remote', { key: 'x' })).status, 400);
+    assert.equal((await call('POST', '/remote', { go: 'https://example.com' })).status, 400);
+    await new Promise((r) => setTimeout(r, 100));
+    assert.ok(got.join('').includes('data: {"key":"k"}'));
+  } finally {
+    req.destroy();
+  }
+});
