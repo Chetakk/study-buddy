@@ -1,0 +1,100 @@
+<title>Study Buddy Dashboard Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a plain chooser. Short intro, then a 2x2 grid of options, each with a schematic of its layout. */
+:root {
+  --font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bg: #f5f6f8; --surface: #ffffff; --line: #e1e4ea; --fg: #151922; --muted: #5a6371; --block: #e4e7ed; --block-2: #cdd2db;
+  --ml: #2a78d6; --py: #1a9e70; --lc: #e0602c;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1114; --surface: #16191e; --line: #262a32; --fg: #e9ebef; --muted: #9aa2b0; --block: #22262e; --block-2: #2f343e; color-scheme: dark;
+} }
+:root[data-theme="dark"] { --bg: #0f1114; --surface: #16191e; --line: #262a32; --fg: #e9ebef; --muted: #9aa2b0; --block: #22262e; --block-2: #2f343e; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.55 var(--font); background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 28px; font-weight: 650; letter-spacing: -.025em; margin: 0 0 8px; text-wrap: balance; }
+.intro { color: var(--muted); max-width: 62ch; margin: 0 0 28px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+a.opt { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; transition: border-color .15s; }
+a.opt:hover { border-color: var(--muted); }
+a.opt:focus-visible { outline: 2px solid var(--ml); outline-offset: 2px; }
+.opt h2 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+.opt h2 span { font-size: 13px; font-weight: 500; color: var(--muted); }
+.opt p { margin: 0; color: var(--muted); font-size: 14px; }
+.opt .open { font-size: 13.5px; font-weight: 600; margin-top: auto; }
+/* schematics */
+.sk { aspect-ratio: 16 / 9; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); padding: 8px; display: grid; gap: 6px; }
+.sk i { display: block; border-radius: 3px; background: var(--block); }
+.sk i.c { background: var(--c); opacity: .85; }
+.sk-a { grid-template-columns: 22% 1fr; }
+.sk-a > i { background: var(--block-2); }
+.sk-a .m { display: grid; grid-template-rows: auto 38% 1fr; gap: 6px; }
+.sk-a .t { display: grid; grid-template-columns: 2fr 1fr; gap: 6px; }
+.sk-a .rows { display: grid; gap: 4px; }
+.sk-b { grid-template-columns: 1fr 34%; }
+.sk-b .l, .sk-b .r { display: grid; gap: 4px; align-content: start; }
+.sk-c { grid-template-rows: 12% 34% 1fr; }
+.sk-c .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sk-d { grid-template-rows: 46% 1fr 1fr; }
+.sk-d .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+.sk-d .shelf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.note { margin-top: 28px; color: var(--muted); font-size: 13.5px; }
+@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { a.opt { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>Today page: four directions</h1>
+  <p class="intro">Same data in each: your ML, Python and LeetCode groups, the video to resume, up-next videos, streak and this week's time. Each page has a theme toggle so you can check light and dark. Pick one, or name parts to combine.</p>
+
+  <div class="grid">
+    <a class="opt" href="option-e-combined.html" style="grid-column: 1 / -1">
+      <h2>E · Combined <span>your pick: A + C + current look</span></h2>
+      <p>The sidebar and the resume and Today panels from A, the group tiles with rings from C, all in the current app's glass look with the floating blobs.</p>
+      <span class="open">Open option E</span>
+    </a>
+    <a class="opt" href="option-a-workspace.html">
+      <div class="sk sk-a" aria-hidden="true">
+        <i></i>
+        <div class="m"><i style="height:10px;width:40%"></i><div class="t"><i class="c" style="--c:var(--ml)"></i><i></i></div><div class="rows"><i></i><i></i><i></i></div></div>
+      </div>
+      <h2>A · Workspace <span>sidebar app</span></h2>
+      <p>Groups live in a left sidebar like Linear or Notion. The main area shows what to resume, today's numbers, and a table of groups with progress, time left and the next video. Calm, tidy, dense.</p>
+      <span class="open">Open option A</span>
+    </a>
+    <a class="opt" href="option-b-planner.html">
+      <div class="sk sk-b" aria-hidden="true">
+        <div class="l"><i style="height:16px;width:30%"></i><i style="height:8px;--c:var(--ml)" class="c"></i><i style="height:10px"></i><i style="height:10px"></i><i style="height:8px;--c:var(--py)" class="c"></i><i style="height:10px"></i><i style="height:8px;--c:var(--lc)" class="c"></i><i style="height:10px"></i></div>
+        <div class="r"><i style="height:30px"></i><i style="height:44px"></i><i style="height:30px"></i></div>
+      </div>
+      <h2>B · Planner <span>today's checklist</span></h2>
+      <p>Built like a day planner: a big date, then today's queue as a checklist grouped by subject, with a time target. Streak, week chart and totals sit in a side column. Ready for the planned daily-planner feature.</p>
+      <span class="open">Open option B</span>
+    </a>
+    <a class="opt" href="option-c-friendly.html">
+      <div class="sk sk-c" aria-hidden="true">
+        <i style="width:45%"></i><i></i>
+        <div class="tiles"><i class="c" style="--c:var(--ml);opacity:.35"></i><i class="c" style="--c:var(--py);opacity:.35"></i><i class="c" style="--c:var(--lc);opacity:.35"></i></div>
+      </div>
+      <h2>C · Friendly <span>colourful and tactile</span></h2>
+      <p>Warmer and more encouraging. Chunky buttons you can press, a tile per group in its own colour with a progress ring, a streak flame, and a friendly weekly chart. Closest to a learning app like Duolingo, but toned down.</p>
+      <span class="open">Open option C</span>
+    </a>
+    <a class="opt" href="option-d-cinema.html">
+      <div class="sk sk-d" aria-hidden="true">
+        <div class="hero"><i class="c" style="--c:var(--ml)"></i><i></i></div>
+        <div class="shelf"><i></i><i></i><i></i><i></i></div>
+        <div class="shelf"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <h2>D · Watch-first <span>video shelves</span></h2>
+      <p>Built around the videos. A large resume card with the watched-parts strip, then a shelf of upcoming videos for each group, like a streaming app. Designed dark-first, with a matching light mode.</p>
+      <span class="open">Open option D</span>
+    </a>
+  </div>
+  <p class="note">Thumbnails are coloured placeholders. The real app will show the YouTube thumbnails.</p>
+</div>

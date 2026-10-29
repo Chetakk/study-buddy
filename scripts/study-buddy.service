@@ -1,0 +1,10 @@
+[Unit]
+Description=Study Buddy (http://127.0.0.1:7314)
+
+[Service]
+WorkingDirectory=%h/Projects/study-budd
+ExecStart=/usr/local/bin/node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

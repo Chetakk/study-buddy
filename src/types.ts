@@ -1,0 +1,166 @@
+export type Status = 'not_started' | 'in_progress' | 'done';
+export type ItemKind = 'video' | 'problem';
+
+// Details for items of kind 'problem' (empty for videos).
+export interface ProblemMeta {
+  difficulty?: '' | 'easy' | 'medium' | 'hard';
+  concept?: string;
+  challenge?: boolean;
+  homework?: boolean;
+  links?: { label: string; url: string }[];
+}
+export type Segment = [number, number];
+
+export interface SourceStats {
+  id: number;
+  groupId: number;
+  kind: string;
+  title: string;
+  channel: string;
+  url: string;
+  total: number;
+  done: number;
+  durationS: number;
+  watchedS: number;
+}
+
+export interface Group {
+  id: number;
+  name: string;
+  color: string;
+  onToday: boolean;
+  total: number;
+  done: number;
+  durationS: number;
+  watchedS: number;
+  sources: SourceStats[];
+}
+
+export interface QueueItem {
+  id: number;
+  kind: ItemKind;
+  url: string;
+  meta: ProblemMeta;
+  title: string;
+  durationS: number;
+  thumbnail: string;
+  sourceId: number;
+  sourceTitle: string;
+  watchedS: number;
+  positionS: number;
+  status: Status;
+}
+
+export interface ResumeItem {
+  id: number;
+  title: string;
+  durationS: number;
+  thumbnail: string;
+  position: number;
+  sourceId: number;
+  sourceTitle: string;
+  sourceTotal: number;
+  groupId: number;
+  groupName: string;
+  groupColor: string;
+  segments: Segment[];
+  watchedS: number;
+  positionS: number;
+  status: Status;
+  next: { id: number; title: string; durationS: number; thumbnail: string } | null;
+}
+
+export type TodayGroup = Group & { upNext: QueueItem[]; studiedToday: boolean; finishedAt: string | null };
+
+export interface GroupSource extends SourceStats {
+  next: QueueItem | null;
+  lastAt: string | null;
+  items?: ListItem[]; // problem patterns only
+}
+
+export interface GroupDetail extends Omit<Group, 'sources'> {
+  sources: GroupSource[];
+  upNext: QueueItem[];
+}
+
+export interface Today {
+  groups: TodayGroup[];
+  allGroups: { id: number; name: string; color: string; onToday: boolean }[];
+  resume: ResumeItem | null;
+  studiedTodayS: number;
+  avgDailyS: number;
+  streak: number;
+  longestStreak: number;
+}
+
+export interface Sidebar {
+  groups: { id: number; name: string; color: string; done: number; total: number }[];
+  streak: number;
+}
+
+export interface SearchHit {
+  kind: 'Group' | 'Playlist' | 'Pattern' | 'Video' | 'Problem';
+  title: string;
+  sub: string;
+  color: string;
+  href: string;
+}
+
+export interface ListItem {
+  id: number;
+  kind: ItemKind;
+  url: string;
+  meta: ProblemMeta;
+  title: string;
+  durationS: number;
+  thumbnail: string;
+  position: number;
+  watchedS: number;
+  status: Status;
+}
+
+export interface SourceDetail extends SourceStats {
+  group: { id: number; name: string; color: string };
+  items: ListItem[];
+}
+
+export interface Progress {
+  segments: Segment[];
+  watchedS: number;
+  positionS: number;
+  status: Status;
+  completedAt: string | null;
+}
+
+export interface Note {
+  id: number;
+  atS: number;
+  body: string;
+  createdAt: string;
+}
+
+export interface ItemDetail {
+  id: number;
+  kind: string;
+  externalId: string;
+  title: string;
+  durationS: number;
+  thumbnail: string;
+  position: number;
+  sourceId: number;
+  sourceTitle: string;
+  groupId: number;
+  groupName: string;
+  groupColor: string;
+  progress: Progress;
+  notes: Note[];
+  playlist: ListItem[];
+}
+
+export interface Stats {
+  groups: Group[];
+  days: { day: string; seconds: number }[];
+  week: { day: string; groupId: number; seconds: number }[];
+  totalStudiedS: number;
+  streak: number;
+}

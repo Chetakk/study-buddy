@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Study Buddy Importer",
+  "version": "1.0.0",
+  "description": "Send YouTube playlists to Study Buddy in bulk, straight from your saved playlists.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx6xxLF1q+P9I1th0j8kM4mHfTfCFik/lucjL2bW1PpopNMlGGbwYG1R8rFnj1+w/ObUTFd9t0NdI2/OthLRzK4WxWweNUqBRAfgzv+fiN2qy7oAzDk5CQNlCMuOTwc7uWo3HNv4HEiYylBZCVNqMKzi4DOfstlhm3+MKnMlLxTK6bMP7vYHPg2pfHLigRNxW33B/eL61ZUArgOKBugjRW12nDLc1DQTF5Ynj0GzGlw4aRdTD/xUrXGDi0qdFFcg6ddAfRzQScxK6FA/4aRB6uT7Feq+jzSfPpBkHh8+wHM/f9KvKwrMI7Nvzz9ihZGZCB5OZPPmGShEtz8AUqDQpbQIDAQAB",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Import playlists into Study Buddy",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:7314/*"
+  ]
+}

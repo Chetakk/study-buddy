@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Study Buddy Importer</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header class="head">
+  <img src="icons/icon-32.png" alt="" width="24" height="24">
+  <strong>Study Buddy</strong>
+  <span id="conn" class="conn" hidden></span>
+</header>
+
+<!-- Not on YouTube -->
+<section id="v-away" class="view" hidden>
+  <h1>Open YouTube first</h1>
+  <p>Go to your saved playlists, a channel's Playlists tab, or any playlist page. Then click the Study Buddy icon again.</p>
+  <button id="open-saved" class="btn primary">Open my saved playlists</button>
+</section>
+
+<!-- Picking playlists -->
+<section id="v-pick" class="view" hidden>
+  <div class="row between">
+    <h1 id="found">Scanning…</h1>
+    <button id="more" class="btn sm" title="Scrolls the page to the bottom so YouTube loads every playlist">Find more</button>
+  </div>
+  <div id="here" class="here" hidden>
+    <div class="here-text">
+      <div class="lbl">This playlist</div>
+      <div id="here-title" class="t"></div>
+      <div class="s">Reads the videos from this page, so your private playlists work too.</div>
+    </div>
+    <button id="here-import" class="btn sm primary">Import this page</button>
+  </div>
+  <input id="filter" class="input" type="search" placeholder="Filter by title or channel" autocomplete="off">
+  <div class="row between sub">
+    <label class="check-all"><input id="all" type="checkbox"> Select all</label>
+    <span id="picked" class="muted"></span>
+  </div>
+  <ul id="list" class="list" aria-label="Playlists on this page"></ul>
+  <p id="empty" class="muted center" hidden>No playlists found on this page. On your saved playlists page, try <b>Find more</b>.</p>
+
+  <footer class="foot">
+    <label class="lbl" for="group">Add to group</label>
+    <div class="row">
+      <select id="group" class="input"></select>
+      <input id="new-group" class="input" placeholder="New group name" hidden>
+    </div>
+    <button id="import" class="btn primary wide" disabled>Import</button>
+    <p id="err" class="error" hidden></p>
+  </footer>
+</section>
+
+<!-- Import progress -->
+<section id="v-job" class="view" hidden>
+  <h1 id="job-title">Importing…</h1>
+  <p id="job-sub" class="muted"></p>
+  <ul id="job-list" class="list job"></ul>
+  <div class="row">
+    <button id="again" class="btn" hidden>Import more</button>
+    <button id="open-app" class="btn primary">Open Study Buddy</button>
+  </div>
+</section>
+
+<script type="module" src="popup.js"></script>
+</body>
+</html>

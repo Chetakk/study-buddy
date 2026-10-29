@@ -1,0 +1,708 @@
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  db,
+  tx,
+  localDay,
+  mergeSegments,
+  coveredSeconds,
+  DONE_RATIO,
+  type Segment,
+} from './db.ts';
+import { fetchPlaylist, parsePlaylistId, type PlaylistVideo } from './youtube.ts';
+import { fetchSheet, parseProblems, parseSheetUrl } from './sheets.ts';
+
+const PORT = Number(process.env.PORT ?? 7314);
+const EXTENSION_ORIGIN = 'chrome-extension://akpgchnbfjjddggapkcmlbjpdfpconii';
+const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// ---------- queries ----------
+
+// Done items count in full; others count the unique seconds actually played.
+const SOURCE_STATS = `
+  SELECT s.id, s.group_id AS groupId, s.kind, s.title, s.channel, s.url, s.position,
+         COUNT(i.id) AS total,
+         COALESCE(SUM(p.status = 'done'), 0) AS done,
+         COALESCE(SUM(i.duration_s), 0) AS durationS,
+         COALESCE(SUM(CASE WHEN p.status = 'done' THEN i.duration_s
+                           ELSE MIN(COALESCE(p.watched_s, 0), i.duration_s) END), 0) AS watchedS
+  FROM sources s
+  LEFT JOIN items i ON i.source_id = s.id
+  LEFT JOIN progress p ON p.item_id = i.id
+  GROUP BY s.id
+  ORDER BY s.position, s.id`;
+
+function listGroups() {
+  const groups = (
+    db.prepare('SELECT id, name, color, position, on_today AS onToday FROM groups ORDER BY position, id').all() as any[]
+  ).map((g) => ({ ...g, onToday: Boolean(g.onToday) }));
+  const sources = db.prepare(SOURCE_STATS).all() as any[];
+  return groups.map((g) => {
+    const own = sources.filter((s) => s.groupId === g.id);
+    const sum = (k: string) => own.reduce((a, s) => a + s[k], 0);
+    return {
+      ...g,
+      total: sum('total'),
+      done: sum('done'),
+      durationS: sum('durationS'),
+      watchedS: sum('watchedS'),
+      sources: own,
+    };
+  });
+}
+
+// Items to work on next in a source: started ones first, then the earliest untouched.
+function upNext(sourceIds: number[], limit: number) {
+  if (!sourceIds.length) return [];
+  const marks = sourceIds.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT i.id, i.title, i.duration_s AS durationS, i.thumbnail, i.source_id AS sourceId,
+              s.title AS sourceTitle, COALESCE(p.watched_s, 0) AS watchedS,
+              COALESCE(p.position_s, 0) AS positionS, COALESCE(p.status, 'not_started') AS status,
+              i.kind, i.url, i.meta
+       FROM items i JOIN sources s ON s.id = i.source_id
+       LEFT JOIN progress p ON p.item_id = i.id
+       WHERE i.source_id IN (${marks}) AND COALESCE(p.status, 'not_started') != 'done'
+       ORDER BY (COALESCE(p.status, 'not_started') = 'in_progress') DESC, p.updated_at DESC,
+                s.position, i.position
+       LIMIT ?`,
+    )
+    .all(...sourceIds, limit)
+    .map(withMeta);
+}
+
+const withMeta = (r: any) => ({ ...r, meta: JSON.parse(r.meta || '{}') });
+
+// Days with at least a minute of study or a solved problem, oldest first.
+function studyDays(): string[] {
+  const days = new Set(
+    (db.prepare('SELECT day FROM activity GROUP BY day HAVING SUM(seconds) >= 60').all() as any[]).map((r) => r.day as string),
+  );
+  const solved = db
+    .prepare(
+      `SELECT p.completed_at AS at FROM progress p JOIN items i ON i.id = p.item_id
+       WHERE i.kind = 'problem' AND p.status = 'done' AND p.completed_at IS NOT NULL`,
+    )
+    .all() as any[];
+  for (const r of solved) days.add(localDay(new Date(r.at)));
+  return [...days].sort();
+}
+
+function studiedTodayByGroup(): Set<number> {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT s.group_id AS id FROM activity a JOIN items i ON i.id = a.item_id JOIN sources s ON s.id = i.source_id
+       WHERE a.day = ? AND a.seconds >= 60`,
+    )
+    .all(localDay()) as any[];
+  const ids = new Set(rows.map((r) => r.id as number));
+  const solved = db
+    .prepare(
+      `SELECT s.group_id AS id, p.completed_at AS at FROM progress p JOIN items i ON i.id = p.item_id
+       JOIN sources s ON s.id = i.source_id WHERE i.kind = 'problem' AND p.status = 'done' AND p.completed_at >= ?`,
+    )
+    .all(new Date(Date.now() - 864e5).toISOString()) as any[];
+  for (const r of solved) if (localDay(new Date(r.at)) === localDay()) ids.add(r.id);
+  return ids;
+}
+
+function streak(days = new Set(studyDays())): number {
+  const d = new Date();
+  // Today not studied yet doesn't break the streak; it just doesn't count.
+  if (!days.has(localDay(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (days.has(localDay(d))) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
+function longestStreak(days: string[]): number {
+  let best = 0;
+  let run = 0;
+  let prev: Date | null = null;
+  for (const day of days) {
+    const d = new Date(`${day}T12:00:00`);
+    run = prev && Math.round((d.getTime() - prev.getTime()) / 864e5) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = d;
+  }
+  return best;
+}
+
+// The video to pick up: the most recently played unfinished one, else the first untouched one.
+function resume(groupIds: number[]) {
+  const only = groupIds.length ? `AND g.id IN (${groupIds.map(Number).join(',')})` : '';
+  const r = db
+    .prepare(
+      `SELECT i.id, i.title, i.duration_s AS durationS, i.thumbnail, i.position, i.source_id AS sourceId,
+              s.title AS sourceTitle, g.id AS groupId, g.name AS groupName, g.color AS groupColor,
+              COALESCE(p.segments, '[]') AS segments, COALESCE(p.watched_s, 0) AS watchedS,
+              COALESCE(p.position_s, 0) AS positionS, COALESCE(p.status, 'not_started') AS status,
+              (SELECT COUNT(*) FROM items WHERE source_id = i.source_id) AS sourceTotal
+       FROM items i JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
+       LEFT JOIN progress p ON p.item_id = i.id
+       WHERE i.kind = 'video' AND COALESCE(p.status, 'not_started') != 'done' ${only}
+       ORDER BY (p.status = 'in_progress') DESC, p.updated_at DESC, g.position, s.position, i.position
+       LIMIT 1`,
+    )
+    .get() as any;
+  if (!r) return null;
+  const next = db
+    .prepare(
+      `SELECT i.id, i.title, i.duration_s AS durationS, i.thumbnail
+       FROM items i LEFT JOIN progress p ON p.item_id = i.id
+       WHERE i.source_id = ? AND i.position > ? AND COALESCE(p.status, 'not_started') != 'done'
+       ORDER BY i.position LIMIT 1`,
+    )
+    .get(r.sourceId, r.position);
+  return { ...r, segments: JSON.parse(r.segments) as Segment[], next: next ?? null };
+}
+
+function itemDetail(id: number) {
+  const item = db
+    .prepare(
+      `SELECT i.id, i.kind, i.external_id AS externalId, i.title, i.duration_s AS durationS,
+              i.thumbnail, i.position, i.source_id AS sourceId, s.title AS sourceTitle,
+              g.id AS groupId, g.name AS groupName, g.color AS groupColor
+       FROM items i JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
+       WHERE i.id = ?`,
+    )
+    .get(id) as any;
+  if (!item) throw new HttpError(404, 'Item not found');
+  return {
+    ...item,
+    progress: progressFor(id),
+    notes: db
+      .prepare('SELECT id, at_s AS atS, body, created_at AS createdAt FROM notes WHERE item_id = ? ORDER BY at_s')
+      .all(id),
+    playlist: sourceItems(item.sourceId),
+  };
+}
+
+function progressFor(itemId: number) {
+  const p = db.prepare('SELECT * FROM progress WHERE item_id = ?').get(itemId) as any;
+  return {
+    segments: p ? (JSON.parse(p.segments) as Segment[]) : [],
+    watchedS: p?.watched_s ?? 0,
+    positionS: p?.position_s ?? 0,
+    status: p?.status ?? 'not_started',
+    completedAt: p?.completed_at ?? null,
+  };
+}
+
+function sourceItems(sourceId: number) {
+  return db
+    .prepare(
+      `SELECT i.id, i.kind, i.title, i.url, i.meta, i.duration_s AS durationS, i.thumbnail, i.position,
+              COALESCE(p.watched_s, 0) AS watchedS, COALESCE(p.status, 'not_started') AS status
+       FROM items i LEFT JOIN progress p ON p.item_id = i.id
+       WHERE i.source_id = ? ORDER BY i.position`,
+    )
+    .all(sourceId)
+    .map(withMeta);
+}
+
+function nextPosition(table: 'groups' | 'sources'): number {
+  return ((db.prepare(`SELECT MAX(position) AS m FROM ${table}`).get() as any).m ?? -1) + 1;
+}
+
+function upsertItems(sourceId: number, videos: Awaited<ReturnType<typeof fetchPlaylist>>['videos']) {
+  const stmt = db.prepare(
+    `INSERT INTO items (source_id, kind, external_id, title, duration_s, thumbnail, position)
+     VALUES (?, 'video', ?, ?, ?, ?, ?)
+     ON CONFLICT (source_id, external_id) DO UPDATE SET
+       title = excluded.title, duration_s = excluded.duration_s,
+       thumbnail = excluded.thumbnail, position = excluded.position`,
+  );
+  videos.forEach((v, i) => stmt.run(sourceId, v.videoId, v.title, v.durationS, v.thumbnail, i));
+}
+
+// ---------- routes ----------
+
+type Handler = (params: string[], body: any, url: URL) => unknown | Promise<unknown>;
+const routes: [string, RegExp, Handler][] = [];
+const route = (method: string, pattern: string, handler: Handler) =>
+  routes.push([method, new RegExp(`^${pattern.replace(/:\w+/g, '(\\d+)')}$`), handler]);
+
+route('GET', '/api/today', () => {
+  const finished = new Map(
+    (
+      db
+        .prepare(
+          `SELECT s.group_id AS groupId, MAX(p.completed_at) AS at
+           FROM progress p JOIN items i ON i.id = p.item_id JOIN sources s ON s.id = i.source_id
+           GROUP BY s.group_id`,
+        )
+        .all() as any[]
+    ).map((r) => [r.groupId, r.at]),
+  );
+  const touched = studiedTodayByGroup();
+  const all = listGroups();
+  // What to do first: your order, but groups already studied today move down and finished ones go last.
+  const rank = (g: any) => (g.total > 0 && g.done === g.total ? 2 : touched.has(g.id) ? 1 : 0);
+  const groups = all
+    .filter((g) => g.onToday)
+    .map((g) => ({
+      ...g,
+      upNext: upNext(
+        g.sources.map((s: any) => s.id),
+        1,
+      ),
+      studiedToday: touched.has(g.id),
+      finishedAt: g.total > 0 && g.done === g.total ? (finished.get(g.id) ?? null) : null,
+    }))
+    .sort((a, b) => rank(a) - rank(b) || a.position - b.position);
+  const today = db.prepare('SELECT COALESCE(SUM(seconds), 0) AS s FROM activity WHERE day = ?').get(localDay()) as any;
+  // Average over the days actually studied in the 30 days before today.
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const avg = db
+    .prepare(
+      `SELECT AVG(s) AS s FROM (SELECT SUM(seconds) AS s FROM activity
+       WHERE day >= ? AND day < ? GROUP BY day HAVING s >= 60)`,
+    )
+    .get(localDay(since), localDay()) as any;
+  const days = studyDays();
+  return {
+    groups,
+    allGroups: all.map(({ id, name, color, onToday }) => ({ id, name, color, onToday })),
+    resume: resume(groups.map((g) => g.id)),
+    studiedTodayS: today.s,
+    avgDailyS: Math.round(avg.s ?? 0),
+    streak: streak(new Set(days)),
+    longestStreak: longestStreak(days),
+  };
+});
+
+route('GET', '/api/sidebar', () => ({
+  groups: listGroups().map(({ id, name, color, done, total }) => ({ id, name, color, done, total })),
+  streak: streak(),
+}));
+
+// Jump-to search across groups, playlists and videos. An empty query lists groups and playlists.
+route('GET', '/api/search', (_, __, url) => {
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  const groups = db
+    .prepare(`SELECT id, name AS title, color FROM groups WHERE name LIKE ? ESCAPE '\\' ORDER BY position LIMIT 5`)
+    .all(like) as any[];
+  const sources = db
+    .prepare(
+      `SELECT s.id, s.kind, s.title, s.channel AS sub, g.color FROM sources s JOIN groups g ON g.id = s.group_id
+       WHERE s.title LIKE ? ESCAPE '\\' ORDER BY g.position, s.position LIMIT 6`,
+    )
+    .all(like) as any[];
+  const items = q
+    ? (db
+        .prepare(
+          `SELECT i.id, i.kind, i.source_id AS sourceId, i.title, s.title AS sub, g.color FROM items i
+           JOIN sources s ON s.id = i.source_id JOIN groups g ON g.id = s.group_id
+           LEFT JOIN progress p ON p.item_id = i.id
+           WHERE i.title LIKE ? ESCAPE '\\'
+           ORDER BY (p.status = 'in_progress') DESC, (p.status = 'done'), g.position, s.position, i.position
+           LIMIT 12`,
+        )
+        .all(like) as any[])
+    : [];
+  return [
+    ...groups.map((r) => ({ kind: 'Group', title: r.title, sub: '', color: r.color, href: `#/group/${r.id}` })),
+    ...sources.map((r) => ({ kind: r.kind === 'problem_set' ? 'Pattern' : 'Playlist', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.id}` })),
+    ...items.map((r) =>
+      r.kind === 'problem'
+        ? { kind: 'Problem', title: r.title, sub: r.sub, color: r.color, href: `#/source/${r.sourceId}` }
+        : { kind: 'Video', title: r.title, sub: r.sub, color: r.color, href: `#/watch/${r.id}` },
+    ),
+  ];
+});
+
+route('GET', '/api/groups', () => listGroups());
+
+route('POST', '/api/groups', (_, b) => {
+  const name = String(b.name ?? '').trim();
+  if (!name) throw new HttpError(400, 'Name is required');
+  const r = db
+    .prepare('INSERT INTO groups (name, color, position) VALUES (?, ?, ?)')
+    .run(name, String(b.color ?? 'sky'), nextPosition('groups'));
+  return { id: Number(r.lastInsertRowid) };
+});
+
+route('PATCH', '/api/groups/:id', ([id], b) => {
+  if (b.name !== undefined) {
+    const name = String(b.name).trim();
+    if (!name) throw new HttpError(400, 'Name is required');
+    db.prepare('UPDATE groups SET name = ? WHERE id = ?').run(name, Number(id));
+  }
+  if (b.color !== undefined) db.prepare('UPDATE groups SET color = ? WHERE id = ?').run(String(b.color), Number(id));
+  if (b.onToday !== undefined) db.prepare('UPDATE groups SET on_today = ? WHERE id = ?').run(b.onToday ? 1 : 0, Number(id));
+  return { ok: true };
+});
+
+route('DELETE', '/api/groups/:id', ([id]) => {
+  db.prepare('DELETE FROM groups WHERE id = ?').run(Number(id));
+  return { ok: true };
+});
+
+// The Today page reorders only the groups it shows; hidden groups keep their places between them.
+route('POST', '/api/groups/order', (_, b) => {
+  const given = (b.ids as number[]).map(Number);
+  const all = (db.prepare('SELECT id FROM groups ORDER BY position, id').all() as any[]).map((r) => r.id as number);
+  const queue = given.filter((id) => all.includes(id));
+  const order = all.map((id) => (queue.length && given.includes(id) ? queue.shift()! : id));
+  const stmt = db.prepare('UPDATE groups SET position = ? WHERE id = ?');
+  tx(() => order.forEach((id, i) => stmt.run(i, id)));
+  return { ok: true };
+});
+
+// One group: its playlists and problem patterns with progress, what to do next, and every problem.
+route('GET', '/api/groups/:id', ([id]) => {
+  const g = listGroups().find((x) => x.id === Number(id));
+  if (!g) throw new HttpError(404, 'Group not found');
+  const last = db.prepare(
+    `SELECT MAX(p.updated_at) AS at FROM progress p JOIN items i ON i.id = p.item_id WHERE i.source_id = ?`,
+  );
+  const sources = g.sources.map((s: any) => ({
+    ...s,
+    next: upNext([s.id], 1)[0] ?? null,
+    lastAt: (last.get(s.id) as any).at ?? null,
+    items: s.kind === 'problem_set' ? sourceItems(s.id) : undefined,
+  }));
+  const videoIds = sources.filter((s: any) => s.kind !== 'problem_set').map((s: any) => s.id);
+  return { ...g, sources, upNext: upNext(videoIds, 5) };
+});
+
+function checkNewSource(groupId: number, playlistId: string) {
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) throw new HttpError(400, 'Pick a group first');
+  const existing = db
+    .prepare(
+      `SELECT g.name FROM sources s JOIN groups g ON g.id = s.group_id
+       WHERE s.kind = 'youtube_playlist' AND s.external_id = ?`,
+    )
+    .get(playlistId) as any;
+  if (existing) throw new HttpError(409, `This playlist is already in "${existing.name}"`);
+}
+
+function insertSource(groupId: number, playlistId: string, pl: { title: string; channel: string; videos: PlaylistVideo[] }) {
+  return tx(() => {
+    const r = db
+      .prepare(
+        `INSERT INTO sources (group_id, kind, external_id, url, title, channel, position)
+         VALUES (?, 'youtube_playlist', ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        groupId,
+        playlistId,
+        `https://www.youtube.com/playlist?list=${playlistId}`,
+        pl.title,
+        pl.channel,
+        nextPosition('sources'),
+      );
+    const id = Number(r.lastInsertRowid);
+    upsertItems(id, pl.videos);
+    return { id, title: pl.title, count: pl.videos.length };
+  });
+}
+
+route('POST', '/api/sources', async (_, b) => {
+  const groupId = Number(b.groupId);
+  const playlistId = parsePlaylistId(String(b.url ?? ''));
+  if (!playlistId) throw new HttpError(400, "That doesn't look like a YouTube playlist link (it needs ?list=…)");
+  checkNewSource(groupId, playlistId);
+  const pl = await fetchPlaylist(playlistId);
+  if (!pl.videos.length) throw new HttpError(422, 'The playlist has no public videos');
+  return insertSource(groupId, playlistId, pl);
+});
+
+// The extension reads a playlist from the page in the user's logged-in browser, so private playlists work too.
+route('POST', '/api/sources/from-page', (_, b) => {
+  const groupId = Number(b.groupId);
+  const playlistId = String(b.playlistId ?? '');
+  if (!/^[\w-]{2,64}$/.test(playlistId)) throw new HttpError(400, 'Missing playlist id');
+  checkNewSource(groupId, playlistId);
+  const videos: PlaylistVideo[] = [];
+  const seen = new Set<string>();
+  for (const v of Array.isArray(b.videos) ? b.videos : []) {
+    const videoId = String(v?.videoId ?? '');
+    if (!/^[\w-]{11}$/.test(videoId) || seen.has(videoId)) continue;
+    seen.add(videoId);
+    videos.push({
+      videoId,
+      title: String(v.title ?? '').slice(0, 300) || 'Untitled',
+      durationS: Math.max(0, Math.round(Number(v.durationS) || 0)),
+      thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    });
+  }
+  if (!videos.length) throw new HttpError(422, 'No videos found on the page');
+  return insertSource(groupId, playlistId, {
+    title: String(b.title ?? '').slice(0, 300) || 'Untitled playlist',
+    channel: String(b.channel ?? '').slice(0, 200),
+    videos,
+  });
+});
+
+route('GET', '/api/sources/:id', ([id]) => {
+  const source = (db.prepare(SOURCE_STATS.replace('GROUP BY', 'WHERE s.id = ? GROUP BY')).get(Number(id)) as any) ?? null;
+  if (!source) throw new HttpError(404, 'Source not found');
+  const group = db.prepare('SELECT id, name, color FROM groups WHERE id = ?').get(source.groupId);
+  return { ...source, group, items: sourceItems(Number(id)) };
+});
+
+route('PATCH', '/api/sources/:id', ([id], b) => {
+  if (b.groupId !== undefined) db.prepare('UPDATE sources SET group_id = ? WHERE id = ?').run(Number(b.groupId), Number(id));
+  return { ok: true };
+});
+
+// Imports a problem sheet as one source per pattern. Running it again picks up new problems and keeps progress;
+// patterns already imported stay in whatever group they were moved to.
+async function importSheet(groupId: number, url: string) {
+  const ref = parseSheetUrl(url);
+  if (!ref) throw new HttpError(400, "That doesn't look like a Google Sheets link");
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) throw new HttpError(400, 'Pick a group first');
+  let sections;
+  try {
+    sections = parseProblems(await fetchSheet(ref.id, ref.gid));
+  } catch (e) {
+    throw new HttpError(422, (e as Error).message);
+  }
+  if (!sections.length) throw new HttpError(422, 'No problems found. Each pattern needs a heading row, then one problem per row.');
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${ref.id}/edit#gid=${ref.gid}`;
+  const count = () => (db.prepare("SELECT COUNT(*) AS n FROM items WHERE kind = 'problem'").get() as any).n;
+  const before = count();
+  tx(() => {
+    const item = db.prepare(
+      `INSERT INTO items (source_id, kind, external_id, title, url, meta, position)
+       VALUES (?, 'problem', ?, ?, ?, ?, ?)
+       ON CONFLICT (source_id, external_id) DO UPDATE SET
+         title = excluded.title, url = excluded.url, meta = excluded.meta, position = excluded.position`,
+    );
+    for (const sec of sections) {
+      const external = `sheet:${ref.id}:${ref.gid}:${sec.slug}`;
+      let src = db.prepare("SELECT id FROM sources WHERE kind = 'problem_set' AND external_id = ?").get(external) as any;
+      if (src) {
+        db.prepare("UPDATE sources SET title = ?, url = ?, synced_at = datetime('now') WHERE id = ?").run(sec.title, sheetUrl, src.id);
+      } else {
+        const r = db
+          .prepare(
+            `INSERT INTO sources (group_id, kind, external_id, url, title, channel, position)
+             VALUES (?, 'problem_set', ?, ?, ?, 'Problem sheet', ?)`,
+          )
+          .run(groupId, external, sheetUrl, sec.title, nextPosition('sources'));
+        src = { id: Number(r.lastInsertRowid) };
+      }
+      sec.problems.forEach((p, i) =>
+        item.run(
+          src.id,
+          p.key,
+          p.title,
+          p.url,
+          JSON.stringify({ difficulty: p.difficulty, concept: p.concept, challenge: p.challenge, homework: p.homework, links: p.links }),
+          i,
+        ),
+      );
+    }
+  });
+  const total = sections.reduce((a, s) => a + s.problems.length, 0);
+  return { sections: sections.length, total, added: count() - before };
+}
+
+route('POST', '/api/sheets', (_, b) => importSheet(Number(b.groupId), String(b.url ?? '')));
+
+route('POST', '/api/sources/:id/sync', async ([id]) => {
+  const s = db.prepare('SELECT external_id, kind, url, group_id FROM sources WHERE id = ?').get(Number(id)) as any;
+  if (!s) throw new HttpError(404, 'Source not found');
+  if (s.kind === 'problem_set') return importSheet(s.group_id, s.url);
+  const pl = await fetchPlaylist(s.external_id);
+  const before = (db.prepare('SELECT COUNT(*) AS n FROM items WHERE source_id = ?').get(Number(id)) as any).n;
+  tx(() => {
+    db.prepare("UPDATE sources SET title = ?, channel = ?, synced_at = datetime('now') WHERE id = ?").run(
+      pl.title,
+      pl.channel,
+      Number(id),
+    );
+    upsertItems(Number(id), pl.videos);
+  });
+  const after = (db.prepare('SELECT COUNT(*) AS n FROM items WHERE source_id = ?').get(Number(id)) as any).n;
+  return { added: after - before };
+});
+
+route('DELETE', '/api/sources/:id', ([id]) => {
+  db.prepare('DELETE FROM sources WHERE id = ?').run(Number(id));
+  return { ok: true };
+});
+
+route('GET', '/api/items/:id', ([id]) => itemDetail(Number(id)));
+
+// Called by the player every few seconds with the ranges played since the last call.
+route('POST', '/api/items/:id/progress', ([id], b) => {
+  const itemId = Number(id);
+  const item = db.prepare('SELECT duration_s FROM items WHERE id = ?').get(itemId) as any;
+  if (!item) throw new HttpError(404, 'Item not found');
+  const reported = Math.round(Number(b.durationS) || 0);
+  if (!item.duration_s && reported > 0) {
+    db.prepare('UPDATE items SET duration_s = ? WHERE id = ?').run(reported, itemId);
+    item.duration_s = reported;
+  }
+  return tx(() => {
+    const prev = progressFor(itemId);
+    const segments = mergeSegments([...prev.segments, ...((b.segments ?? []) as Segment[])]);
+    const watched = coveredSeconds(segments, item.duration_s);
+    let status = prev.status;
+    let completedAt = prev.completedAt;
+    if (status !== 'done') {
+      if (item.duration_s && watched >= item.duration_s * DONE_RATIO) {
+        status = 'done';
+        completedAt = new Date().toISOString();
+      } else if (watched > 0) {
+        status = 'in_progress';
+      }
+    }
+    db.prepare(
+      `INSERT INTO progress (item_id, segments, watched_s, position_s, status, completed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT (item_id) DO UPDATE SET
+         segments = excluded.segments, watched_s = excluded.watched_s, position_s = excluded.position_s,
+         status = excluded.status, completed_at = excluded.completed_at, updated_at = excluded.updated_at`,
+    ).run(itemId, JSON.stringify(segments), watched, Number(b.positionS) || 0, status, completedAt);
+
+    // Wall-clock time spent playing; capped per call so a stuck tab can't inflate it.
+    const played = Math.min(Math.max(Math.round(Number(b.playedS) || 0), 0), 120);
+    if (played) {
+      db.prepare(
+        `INSERT INTO activity (day, item_id, seconds) VALUES (?, ?, ?)
+         ON CONFLICT (day, item_id) DO UPDATE SET seconds = seconds + excluded.seconds`,
+      ).run(localDay(), itemId, played);
+    }
+    return progressFor(itemId);
+  });
+});
+
+route('POST', '/api/items/:id/status', ([id], b) => {
+  const itemId = Number(id);
+  const done = Boolean(b.done);
+  const prev = progressFor(itemId);
+  const status = done ? 'done' : prev.watchedS > 0 ? 'in_progress' : 'not_started';
+  db.prepare(
+    `INSERT INTO progress (item_id, status, completed_at) VALUES (?, ?, ?)
+     ON CONFLICT (item_id) DO UPDATE SET status = excluded.status,
+       completed_at = excluded.completed_at, updated_at = datetime('now')`,
+  ).run(itemId, status, done ? new Date().toISOString() : null);
+  return progressFor(itemId);
+});
+
+route('POST', '/api/items/:id/notes', ([id], b) => {
+  const body = String(b.body ?? '').trim();
+  if (!body) throw new HttpError(400, 'Note is empty');
+  const r = db.prepare('INSERT INTO notes (item_id, at_s, body) VALUES (?, ?, ?)').run(Number(id), Number(b.atS) || 0, body);
+  return { id: Number(r.lastInsertRowid) };
+});
+
+route('DELETE', '/api/notes/:id', ([id]) => {
+  db.prepare('DELETE FROM notes WHERE id = ?').run(Number(id));
+  return { ok: true };
+});
+
+route('GET', '/api/stats', () => {
+  const since = new Date();
+  since.setDate(since.getDate() - 7 * 53);
+  const days = db
+    .prepare('SELECT day, SUM(seconds) AS seconds FROM activity WHERE day >= ? GROUP BY day ORDER BY day')
+    .all(localDay(since));
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 6);
+  const week = db
+    .prepare(
+      `SELECT a.day, s.group_id AS groupId, SUM(a.seconds) AS seconds
+       FROM activity a JOIN items i ON i.id = a.item_id JOIN sources s ON s.id = i.source_id
+       WHERE a.day >= ? GROUP BY a.day, s.group_id`,
+    )
+    .all(localDay(weekStart));
+  const totalS = (db.prepare('SELECT COALESCE(SUM(seconds), 0) AS s FROM activity').get() as any).s;
+  return { groups: listGroups(), days, week, totalStudiedS: totalS, streak: streak() };
+});
+
+// ---------- server ----------
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
+};
+
+function serveStatic(urlPath: string, res: http.ServerResponse) {
+  let file = path.join(DIST, path.normalize(urlPath).replace(/^(\.\.[/\\])+/, ''));
+  if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    file = path.join(DIST, 'index.html'); // client-side routes
+  }
+  if (!fs.existsSync(file)) {
+    res.writeHead(404).end('Run "npm run build" first, or use "npm run dev".');
+    return;
+  }
+  // Hashed build assets never change; the shell and service worker must always be revalidated.
+  const cache = urlPath.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': cache });
+  fs.createReadStream(file).pipe(res);
+}
+
+async function readBody(req: http.IncomingMessage): Promise<any> {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  if (!chunks.length) return {};
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new HttpError(400, 'Invalid JSON');
+  }
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const send = (status: number, data: unknown) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(data));
+  };
+
+  if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
+
+  // Only this app (served from localhost) and its own Chrome extension may call the API, not arbitrary websites.
+  // The extension's ID is fixed by the "key" in extension/manifest.json.
+  const origin = req.headers.origin;
+  if (origin && origin !== EXTENSION_ORIGIN && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return send(403, { error: 'Forbidden origin' });
+  }
+
+  try {
+    for (const [method, re, handler] of routes) {
+      const m = url.pathname.match(re);
+      if (m && method === req.method) {
+        const body = method === 'GET' ? {} : await readBody(req);
+        return send(200, await handler(m.slice(1), body, url));
+      }
+    }
+    send(404, { error: 'Not found' });
+  } catch (err) {
+    const status = err instanceof HttpError ? err.status : 500;
+    if (status === 500) console.error(err);
+    send(status, { error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`Study Buddy API on http://127.0.0.1:${PORT}`);
+});
