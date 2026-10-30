@@ -4,6 +4,17 @@ A personal study tracker. Put YouTube playlists into groups (ML, Python, LeetCod
 
 ## Run it
 
+With biztel:
+
+```sh
+biztel run study budd       # dev: API + Vite with hot reload, http://localhost:5173
+biztel compile study budd   # npm run build
+biztel start study budd     # the built app, http://127.0.0.1:7314 (needs the run.json entry below)
+biztel stop study budd      # or Ctrl+C in its terminal
+```
+
+By hand:
+
 ```sh
 npm install
 npm run build
