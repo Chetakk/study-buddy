@@ -8,9 +8,15 @@ LOG=${XDG_STATE_HOME:-$HOME/.local/state}/study-buddy/run.log
 
 if ! curl -fs -o /dev/null --max-time 1 "http://127.0.0.1:${PORT:-7314}/api/sidebar"; then
   mkdir -p "$(dirname "$LOG")"
-  # ~/.config/biztel/run.json makes this scripts/serve.sh (see the README).
-  # biztel refuses to start a second copy, so opening the window twice is harmless.
-  cd "$DIR" && setsid biztel run >"$LOG" 2>&1 </dev/null &
+  # Build only if something the app is built from changed since the last build, then run the built app
+  # (~/.config/biztel/run.json, see the README). biztel refuses to start a second copy, so opening twice is harmless.
+  cd "$DIR" && setsid sh -c '
+    if [ ! -f dist/index.html ] ||
+      [ -n "$(find src shared public index.html vite.config.ts tsconfig.json package-lock.json -newer dist/index.html -print -quit)" ]; then
+      biztel compile || exit 1
+    fi
+    exec biztel start
+  ' >"$LOG" 2>&1 </dev/null &
 fi
 
 exec google-chrome --profile-directory=Default --app-id="$APP_ID" "$@"
