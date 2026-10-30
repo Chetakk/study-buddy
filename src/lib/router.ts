@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-// Hash routes: #/, #/library, #/progress, #/notes, #/group/3, #/source/12, #/watch/34 (or #/watch/34?t=90)
+// Hash routes: #/, #/library, #/progress, #/notes, #/roadmap, #/group/3, #/source/12, #/watch/34 (or #/watch/34?t=90)
 export interface Route {
   name: string;
   id?: number;

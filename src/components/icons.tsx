@@ -101,3 +101,7 @@ export const Eye = ({ off }: { off?: boolean }) => (
     {off && <path d="M3 3l18 18" />}
   </svg>
 );
+
+export const RoadMap = () => (
+  <svg {...base}><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" /><path d="M9 3v15M15 6v15" /></svg>
+);

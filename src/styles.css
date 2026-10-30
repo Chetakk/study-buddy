@@ -702,3 +702,27 @@ a.tile-top:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 .suggestion-go:hover { text-decoration: underline; }
 .suggestion-x { width: 22px; height: 22px; border-radius: 6px; color: var(--text-subtle); font-size: 16px; line-height: 1; opacity: .6; }
 .suggestion-x:hover, .suggestion-x:focus-visible { opacity: 1; background: var(--glass-bg-subtle); }
+
+/* ---------- roadmap ---------- */
+.road-track { display: flex; gap: 3px; height: 10px; }
+.road-seg { border-radius: 999px; background: var(--track); min-width: 6px; }
+.road-seg.done { background: var(--ok); }
+.road-seg.now { background: var(--accent); }
+.road-seg.next { background: var(--text-subtle); opacity: .55; }
+.road-now-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.road-now-row .dot, .road-lane .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.road-scroll { overflow-x: auto; padding-bottom: 6px; }
+.road-grid { display: grid; grid-template-columns: 120px repeat(4, minmax(190px, 1fr)); gap: 10px; min-width: 900px; }
+.road-col { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-subtle); padding-bottom: 4px; border-bottom: 2px solid var(--track); }
+.road-col.done { border-color: var(--ok); }
+.road-col.now { border-color: var(--accent); }
+.road-lane { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 700; padding-top: 10px; }
+.road-cell { display: flex; flex-direction: column; gap: 8px; padding: 6px; border-radius: var(--radius-sm); background: var(--glass-bg-subtle); min-height: 60px; }
+.road-node { padding: 10px 12px; border-radius: 10px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-left: 3px solid var(--c); }
+.road-node.done { opacity: .72; }
+.road-node.now { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+.road-node.later, .road-node.hold { border-style: dashed; border-left-style: solid; }
+.road-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.road-title svg { width: 14px; height: 14px; color: var(--ok); flex: none; }
+.road-note { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.road-after { font-size: 11px; color: var(--text-subtle); margin-top: 6px; }

@@ -4,7 +4,7 @@ import { api } from './lib/api.ts';
 import { useLoad } from './lib/useLoad.ts';
 import { useOnChanged } from './lib/events.ts';
 import { colorVar, pct } from './lib/format.ts';
-import { BookMark, Cards, Chart, Check, ChevronLeft, Flame, Home, Install, Moon, Pencil, Search, Sun, Videos } from './components/icons.tsx';
+import { BookMark, Cards, Chart, Check, ChevronLeft, Flame, Home, Install, RoadMap, Moon, Pencil, Search, Sun, Videos } from './components/icons.tsx';
 import { SearchPalette } from './components/Search.tsx';
 import { PageBoundary } from './components/ui.tsx';
 import { TodayPage } from './pages/Today.tsx';
@@ -16,6 +16,7 @@ import { ProgressPage } from './pages/Progress.tsx';
 import { NotesPage } from './pages/Notes.tsx';
 import { CardsPage } from './pages/Cards.tsx';
 import { ReviewPage } from './pages/Review.tsx';
+import { RoadmapPage } from './pages/Roadmap.tsx';
 import type { Sidebar } from './types.ts';
 
 type Theme = 'dark' | 'light';
@@ -52,6 +53,7 @@ const NAV = [
   ['cards', '#/cards', 'Flashcards', <Cards key="i" />],
   ['progress', '#/progress', 'Progress', <Chart key="i" />],
   ['notes', '#/notes', 'Notes', <Pencil key="i" />],
+  ['roadmap', '#/roadmap', 'Roadmap', <RoadMap key="i" />],
 ] as const;
 
 const typing = (t: EventTarget | null) =>
@@ -137,6 +139,9 @@ export function App() {
       break;
     case 'cards':
       page = <CardsPage />;
+      break;
+    case 'roadmap':
+      page = <RoadmapPage />;
       break;
     case 'review':
       page = <ReviewPage />;
@@ -264,7 +269,7 @@ export function App() {
 
       {!focus && (
         <nav className="tabbar" aria-label="Main">
-          {NAV.map(([key, href, label, icon]) => (
+          {NAV.filter(([key]) => key !== 'roadmap').map(([key, href, label, icon]) => (
             <TabLink key={key} href={href} on={section === key} label={label === 'Flashcards' ? 'Cards' : label}>
               {icon}
             </TabLink>
