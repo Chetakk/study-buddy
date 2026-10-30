@@ -18,7 +18,13 @@ While developing, `npm run dev` runs the API (restarting on changes) and Vite wi
 
 Open http://127.0.0.1:7314 in Chrome or Edge and click **Install app** at the bottom of the sidebar (or the install icon in the address bar). Study Buddy then opens in its own window from your app launcher, with its own icon.
 
-To have the app icon start Study Buddy when it isn't running, point the launcher at `scripts/open.sh`. It opens the window straight away, starts Study Buddy with `biztel run` (rebuilding first if the code changed since the last build, log in `~/.local/state/study-buddy/run.log`), and the page reloads itself once the server is up:
+To have the app icon start Study Buddy when it isn't running, point the launcher at `scripts/open.sh`. It opens the window straight away, starts Study Buddy with `biztel run` (log in `~/.local/state/study-buddy/run.log`), and the page reloads itself once the server is up. Left alone, `biztel run` would use `npm run dev`; to have it build and run the app instead, add this to `~/.config/biztel/run.json`:
+
+```json
+"study-budd": { "services": [{ "name": "app", "cmd": "npm run build && npm start" }] }
+```
+
+Then point the launcher at the script:
 
 ```sh
 f=$(grep -l '^Name=Study Buddy' ~/.local/share/applications/chrome-*.desktop)
