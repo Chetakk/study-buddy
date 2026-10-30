@@ -18,7 +18,18 @@ While developing, `npm run dev` runs the API (restarting on changes) and Vite wi
 
 Open http://127.0.0.1:7314 in Chrome or Edge and click **Install app** at the bottom of the sidebar (or the install icon in the address bar). Study Buddy then opens in its own window from your app launcher, with its own icon.
 
-To keep the server running in the background and start it when you log in:
+To have the app icon start Study Buddy when it isn't running, point the launcher at `scripts/open.sh`. It opens the window straight away, starts Study Buddy with `biztel run` (rebuilding first if the code changed since the last build, log in `~/.local/state/study-buddy/run.log`), and the page reloads itself once the server is up:
+
+```sh
+f=$(grep -l '^Name=Study Buddy' ~/.local/share/applications/chrome-*.desktop)
+sed -i 's#^Exec=[^ ]*google-chrome --profile-directory=Default --app-id=[a-z]*#Exec='"$PWD"'/scripts/open.sh#' "$f"
+```
+
+If Chrome gave the app a different ID than the one in `scripts/open.sh`, set `STUDY_BUDDY_APP_ID`.
+
+Chrome rewrites that file when it reinstalls the app; run the line again if the icon stops starting the server.
+
+Or, to keep the server running in the background and start it when you log in:
 
 ```sh
 cp scripts/study-buddy.service ~/.config/systemd/user/
