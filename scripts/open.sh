@@ -8,7 +8,7 @@ LOG=${XDG_STATE_HOME:-$HOME/.local/state}/study-buddy/run.log
 
 if ! curl -fs -o /dev/null --max-time 1 "http://127.0.0.1:${PORT:-7314}/api/sidebar"; then
   mkdir -p "$(dirname "$LOG")"
-  # ~/.config/biztel/run.json makes this `npm run build && npm start` (see the README).
+  # ~/.config/biztel/run.json makes this scripts/serve.sh (see the README).
   # biztel refuses to start a second copy, so opening the window twice is harmless.
   cd "$DIR" && setsid biztel run >"$LOG" 2>&1 </dev/null &
 fi
